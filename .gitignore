@@ -5,3 +5,5 @@ dist/
 *-log.txt
 backend/uploads/
 uploads/
+
+.local/
