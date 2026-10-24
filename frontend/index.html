@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>فروشگاه‌یار هوشمند</title>
+    <meta name="theme-color" content="#5b4cf0" />
+    <script>
+      // apply saved theme & brand colour before first paint (no flash)
+      (function () {
+        try {
+          if (localStorage.getItem('sss_lang') === 'en') {
+            document.documentElement.lang = 'en';
+            document.documentElement.dir = 'ltr';
+            document.title = 'Smart Store Assistant';
+          }
+          var m = localStorage.getItem('sss_theme') || 'system';
+          var dark = m === 'dark' || (m === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          var b = localStorage.getItem('sss_brand');
+          if (b && /^#[0-9a-f]{6}$/i.test(b)) {
+            var n = parseInt(b.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
+              var x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+            });
+            var l = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2], st = document.documentElement.style;
+            st.setProperty('--brand', b);
+            st.setProperty('--on-brand', l > 0.45 ? '#000000' : '#ffffff');
+            st.setProperty('--brand-d', l < 0.03 ? '#f2f2f2' : b);
+            st.setProperty('--on-brand-d', l < 0.03 || l > 0.45 ? '#000000' : '#ffffff');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

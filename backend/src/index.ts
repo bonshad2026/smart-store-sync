@@ -1,0 +1,69 @@
+import cors from 'cors';
+import express, { NextFunction, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { ZodError } from 'zod';
+import { config } from './config';
+import { migrate } from './db/migrate';
+import { bootstrap } from './services/bootstrap';
+import { startFeedbackPolling } from './services/feedback';
+import { api } from './routes/api';
+import { publishDue } from './services/content';
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+
+// Optional shared-secret protection (used by n8n and the dashboard)
+app.use('/api', (req, res, next) => {
+  if (!config.apiKey || req.path === '/health') return next();
+  if (req.header('x-api-key') === config.apiKey) return next();
+  res.status(401).json({ error: 'کلید دسترسی (x-api-key) نامعتبر است' });
+});
+app.use('/api', api);
+
+// Uploaded product images
+app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d' }));
+
+// Serve the built dashboard (frontend/dist) if present - single-port production mode
+const dist = path.resolve(__dirname, '../../frontend/dist');
+if (fs.existsSync(dist)) {
+  app.use(express.static(dist));
+  app.get(/^\/(?!api|uploads).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+}
+
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof ZodError) {
+    return res.status(400).json({ error: 'داده‌های ورودی نامعتبر است', details: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`) });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'حجم فایل بیش از حد مجاز است (حداکثر ۵۰ مگابایت برای هر فایل)' });
+  if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ error: 'تعداد فایل‌ها بیش از حد مجاز است (حداکثر ۱۰ فایل)' });
+  const status = err.status || 500;
+  if (status >= 500) console.error(err);
+  res.status(status).json({ error: err.message || 'خطای داخلی سرور' });
+});
+
+async function start() {
+  await migrate();
+  await bootstrap();
+  app.listen(config.port, () => console.log(`🚀 Smart Store Sync API: http://localhost:${config.port}/api`));
+
+  // Built-in scheduler: publishes approved content when its scheduled time arrives.
+  // (n8n can do the same by calling POST /api/contents/publish-due)
+  const interval = Number(process.env.SCHEDULER_INTERVAL_SEC || 60);
+  if (interval > 0) {
+    setInterval(() => {
+      publishDue()
+        .then((r) => r.length && console.log('scheduler published:', r))
+        .catch((e) => console.error('scheduler error:', e.message));
+    }, interval * 1000);
+  }
+
+  // Telegram button taps & private messages to the bot (set FEEDBACK_POLLING=false to disable)
+  if (process.env.FEEDBACK_POLLING !== 'false') startFeedbackPolling().catch((e) => console.error('feedback polling:', e.message));
+}
+
+start().catch((err) => {
+  console.error('Failed to start:', err);
+  process.exit(1);
+});

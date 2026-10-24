@@ -1,0 +1,134 @@
+{
+  "name": "SSS - Feedback → React",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "feedback",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Feedback (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "feedback"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decide how to react to a user's feedback. Edit the rules freely.\n// Input: { event: 'feedback', feedback: { kind, text, button_title, tg_name, ... }, product }\nconst { feedback: f, product } = $input.first().json.body;\nconst text = (f.text || '').toLowerCase();\nlet reply = '';\n\nif (f.kind === 'message') {\n  if (/قیمت|price|چند/.test(text)) reply = `سلام ${f.tg_name || ''} 🌷\\nبرای اطلاع از قیمت روز، نام محصول را بفرستید یا به سایت ما سر بزنید.`;\n  else if (/ارسال|پست|delivery/.test(text)) reply = 'ارسال به سراسر کشور ۲ تا ۴ روز کاری انجام می‌شود 🚚';\n  else if (/گارانتی|ضمانت/.test(text)) reply = 'همه محصولات گارانتی معتبر و ضمانت اصالت دارند ✅';\n}\n// Example: a click on a button whose title contains \"مشاوره\" → follow-up message\nif (f.kind === 'start' && /مشاوره/.test(f.button_title || '')) {\n  reply = `کارشناسان ما به‌زودی درباره «${product?.name || 'محصول'}» با شما تماس می‌گیرند.`;\n}\nreturn [{ json: { id: f.id, reply } }];"
+      },
+      "name": "Choose reaction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $json.reply }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SSS_API_URL }}/feedback/{{ $json.id }}/reply",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.SSS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.reply }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Send reply to user",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -20
+      ]
+    }
+  ],
+  "connections": {
+    "Feedback (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Choose reaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose reaction": {
+      "main": [
+        [
+          {
+            "node": "Has reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has reply?": {
+      "main": [
+        [
+          {
+            "node": "Send reply to user",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Tehran"
+  },
+  "active": false
+}

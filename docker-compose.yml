@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sss}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sss_password}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_store_sync}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sss}"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DATABASE_URL: ""
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    volumes:
+      - uploads:/app/backend/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-change_me}
+      GENERIC_TIMEZONE: Asia/Tehran
+      TZ: Asia/Tehran
+      N8N_SECURE_COOKIE: "false"
+      # آدرس بک‌اند و کلید دسترسی برای گردش‌کارها
+      SSS_API_URL: http://app:4000/api
+      SSS_API_KEY: ${API_KEY:-}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  uploads:
+  n8ndata:
