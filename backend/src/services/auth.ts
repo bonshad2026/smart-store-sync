@@ -169,7 +169,6 @@ export async function sendVerification(user: Pick<User, 'id' | 'name' | 'email'>
     'تأیید ایمیل — فروشگاه‌یار',
     `${user.name} عزیز، برای فعال شدن حساب خود در فروشگاه‌یار، ایمیل خود را تأیید کنید.`,
     { label: 'تأیید ایمیل', url: link('verify-email', token) },
-    `این لینک تا ${TOKEN_HOURS.verify_email} ساعت معتبر است. حساب‌هایی که تا ${config.auth.unverifiedTtlDays} روز تأیید نشوند حذف می‌شوند.`,
   );
 }
 
@@ -235,7 +234,7 @@ export async function requestPasswordReset(address: string) {
     'بازیابی رمز عبور — فروشگاه‌یار',
     `${user.name} عزیز، درخواست تغییر رمز عبور حساب شما در فروشگاه‌یار ثبت شد.`,
     { label: 'انتخاب رمز جدید', url: link('reset-password', token) },
-    `این لینک تا ${TOKEN_HOURS.reset_password} ساعت معتبر است. اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.`,
+    'اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.',
   ).catch((e) => console.error('reset e-mail failed:', e.message));
 }
 

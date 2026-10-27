@@ -105,9 +105,9 @@ export default function Auth({ onAuthed }: { onAuthed: (user: User) => void }) {
 
   if (mode === 'forgot') {
     return (
-      <AuthLayout title={tr("فراموشی رمز عبور")} subtitle={tr("ایمیل حساب خود را وارد کنید تا لینک انتخاب رمز جدید برایتان ارسال شود.")}>
+      <AuthLayout title={tr("فراموشی رمز عبور")} subtitle={tr("ایمیل حساب خود را وارد کنید.")}>
         {sent ? (
-          <div className="alert alert-success"><Icon name="mail" /><span>{tr("اگر حسابی با این ایمیل وجود داشته باشد، لینک بازیابی رمز به آن ارسال شد. صندوق ورودی (و پوشه اسپم) را بررسی کنید.")}</span></div>
+          <div className="alert alert-success"><Icon name="mail" /><span>{tr("لینک بازیابی رمز ارسال شد. صندوق ورودی ایمیل خود را بررسی کنید.")}</span></div>
         ) : (
           <form className="auth-form" onSubmit={submit}>
             <Field label={tr("ایمیل")}>
@@ -126,7 +126,7 @@ export default function Auth({ onAuthed }: { onAuthed: (user: User) => void }) {
     <AuthLayout
       title={firstRun ? tr("ساخت حساب مدیر") : mode === 'login' ? tr("ورود به پنل") : tr("ساخت حساب کاربری")}
       subtitle={firstRun
-        ? tr("هنوز هیچ کاربری ثبت نشده است. اولین حساب، مدیر فروشگاه خواهد بود.")
+        ? tr("برای شروع، حساب مدیر فروشگاه را بسازید.")
         : mode === 'login' ? tr("برای مدیریت فروشگاه وارد حساب خود شوید.") : tr("اطلاعات خود را برای ساخت حساب وارد کنید.")}
     >
       {!firstRun && canRegister && (
@@ -142,7 +142,7 @@ export default function Auth({ onAuthed }: { onAuthed: (user: User) => void }) {
             <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required minLength={2} maxLength={120} autoFocus />
           </Field>
         )}
-        <Field label={tr("ایمیل")} hint={mode === 'register' ? tr("لینک تأیید به این ایمیل ارسال می‌شود") : undefined}>
+        <Field label={tr("ایمیل")}>
           <input dir="ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required autoFocus={mode === 'login'} />
         </Field>
         <Field label={tr("رمز عبور")} hint={mode === 'register' ? tr("حداقل ۸ کاراکتر") : undefined}>

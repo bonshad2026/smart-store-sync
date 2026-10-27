@@ -62,14 +62,14 @@ export function ResetPassword({ token }: { token: string }) {
   if (done) {
     return (
       <AuthLayout title={tr("رمز عبور تغییر کرد")}>
-        <div className="alert alert-success"><Icon name="check" /><span>{tr("رمز جدید ذخیره شد و همه دستگاه‌ها از حساب خارج شدند. با رمز جدید وارد شوید.")}</span></div>
+        <div className="alert alert-success"><Icon name="check" /><span>{tr("رمز جدید ذخیره شد. با رمز جدید وارد شوید.")}</span></div>
         <Button size="lg" className="full-w" onClick={() => window.location.replace(window.location.pathname)}>{tr("ورود به پنل")}</Button>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout title={tr("انتخاب رمز جدید")} subtitle={tr("پس از ذخیره، از همه دستگاه‌ها خارج می‌شوید.")}>
+    <AuthLayout title={tr("انتخاب رمز جدید")}>
       <form className="auth-form" onSubmit={submit}>
         <Field label={tr("رمز عبور جدید")} hint={tr("حداقل ۸ کاراکتر")}>
           <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" minLength={8} autoFocus />
@@ -111,7 +111,6 @@ export function VerifyPending({ user, onRefresh, onLogout }: { user: User; onRef
       title={tr("ایمیل خود را تأیید کنید")}
       subtitle={<>{tr("لینک تأیید به این آدرس ارسال شد:")} <strong dir="ltr">{user.email}</strong></>}
     >
-      <p className="muted auth-note">{tr("تا ایمیل تأیید نشود، دسترسی به پنل ممکن نیست. حساب‌های تأییدنشده پس از چند روز خودکار حذف می‌شوند.")}</p>
       {msg && (msg.tone === 'ok'
         ? <div className="alert alert-success"><Icon name="check" /><span>{msg.text}</span></div>
         : <ErrorBox error={msg.text} />)}

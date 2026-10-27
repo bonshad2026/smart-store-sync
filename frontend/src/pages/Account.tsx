@@ -63,11 +63,11 @@ function ProfileCard({ user, onUserChange }: { user: User; onUserChange: (u: Use
         <Field label={tr("نام و نام خانوادگی")} full>
           <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} autoComplete="name" />
         </Field>
-        <Field label={tr("ایمیل")} full hint={emailChanged ? tr("پس از تغییر، باید ایمیل جدید را تأیید کنید") : undefined}>
+        <Field label={tr("ایمیل")} full>
           <input dir="ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
         </Field>
         {emailChanged && (
-          <Field label={tr("رمز عبور فعلی")} full hint={tr("برای تغییر ایمیل لازم است")}>
+          <Field label={tr("رمز عبور فعلی")} full>
             <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" />
           </Field>
         )}
@@ -92,11 +92,11 @@ function PasswordCard() {
     setBusy(true);
     setError('');
     try {
-      const { revoked } = await authApi.changePassword(current, next);
+      await authApi.changePassword(current, next);
       setCurrent('');
       setNext('');
       setConfirm('');
-      toast(revoked ? `${tr("رمز عبور تغییر کرد و از دستگاه‌های دیگر خارج شدید")} (${revoked.toLocaleString()})` : tr("رمز عبور تغییر کرد"));
+      toast(tr("رمز عبور تغییر کرد"));
       window.dispatchEvent(new Event('sss:sessions'));
     } catch (err: any) {
       setError(err.message);
@@ -105,7 +105,7 @@ function PasswordCard() {
   };
 
   return (
-    <Card title={tr("تغییر رمز عبور")} subtitle={tr("پس از تغییر رمز، همه دستگاه‌های دیگر از حساب خارج می‌شوند.")}>
+    <Card title={tr("تغییر رمز عبور")}>
       <form className="form-grid" onSubmit={save}>
         <Field label={tr("رمز عبور فعلی")} full>
           <PasswordInput value={current} onChange={setCurrent} autoComplete="current-password" />
@@ -166,7 +166,6 @@ function SessionsCard() {
   return (
     <Card
       title={tr("دستگاه‌های فعال")}
-      subtitle={tr("هر جا که با این حساب وارد شده‌اید. دستگاهی را نمی‌شناسید؟ آن را خارج کنید و رمز عبور را تغییر دهید.")}
       actions={others > 0 && (
         <Button variant="soft" size="sm" icon="power" loading={busy === 'others'} onClick={revokeOthers}>{tr("خروج از بقیه")}</Button>
       )}

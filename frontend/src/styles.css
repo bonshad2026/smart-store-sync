@@ -1448,7 +1448,6 @@ input:disabled, select:disabled, textarea:disabled { background: var(--surface-2
 .link-btn { background: none; border: 0; padding: 0; color: var(--brand-text); cursor: pointer; font: inherit; font-size: .86rem; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--border-strong); }
 .link-btn:hover { text-decoration-color: currentColor; }
 .auth-forgot { align-self: flex-start; margin-top: -8px; }
-.auth-note { font-size: .86rem; margin: 0 0 16px; }
 .auth-card .alert { margin-bottom: 16px; }
 a.topbar-user-text { color: inherit; text-decoration: none; }
 a.topbar-user-text:hover strong { color: var(--brand-text); }
