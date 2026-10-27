@@ -320,3 +320,6 @@ export function recordAttempt(key: string) {
 }
 
 export const clearAttempts = (key: string) => hits.delete(key);
+
+/** Test helper: forget all recorded attempts */
+export const resetThrottling = () => hits.clear();
