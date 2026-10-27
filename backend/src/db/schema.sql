@@ -280,3 +280,20 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
   expires_at   TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
+ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS ip VARCHAR(64) NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_users_unverified ON users(created_at) WHERE email_verified_at IS NULL;
+
+-- One-time e-mail links (verify address, reset password); only the SHA-256 of the token is stored
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind       VARCHAR(20) NOT NULL,                     -- verify_email | reset_password
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  email      VARCHAR(255) NOT NULL DEFAULT '',         -- address the link was sent to
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id, kind);

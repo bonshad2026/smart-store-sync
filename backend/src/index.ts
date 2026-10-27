@@ -8,15 +8,16 @@ import { migrate } from './db/migrate';
 import { bootstrap } from './services/bootstrap';
 import { startFeedbackPolling } from './services/feedback';
 import { api } from './routes/api';
-import { auth, requireAuth } from './routes/auth';
+import { auth, loadSession, requireAuth, sameOrigin } from './routes/auth';
+import { cleanupAuth } from './services/auth';
 import { publishDue } from './services/content';
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// Dashboard users log in (Bearer token); n8n and scripts may use the shared API_KEY (x-api-key)
-app.use('/api', requireAuth);
+// Dashboard users log in (HttpOnly session cookie); n8n and scripts may use the shared API_KEY (x-api-key)
+app.use('/api', sameOrigin, loadSession, requireAuth);
 app.use('/api/auth', auth);
 app.use('/api', api);
 
@@ -56,6 +57,14 @@ async function start() {
         .catch((e) => console.error('scheduler error:', e.message));
     }, interval * 1000);
   }
+
+  // Hourly: delete accounts that never verified their e-mail, expired sessions and links
+  const cleanup = () =>
+    cleanupAuth()
+      .then((n) => n && console.log(`auth cleanup: removed ${n} unverified account(s)`))
+      .catch((e) => console.error('auth cleanup error:', e.message));
+  cleanup();
+  setInterval(cleanup, 60 * 60 * 1000);
 
   // Telegram button taps & private messages to the bot (set FEEDBACK_POLLING=false to disable)
   if (process.env.FEEDBACK_POLLING !== 'false') startFeedbackPolling().catch((e) => console.error('feedback polling:', e.message));

@@ -18,6 +18,19 @@ export const config = {
     sessionDays: Number(process.env.SESSION_DAYS || 30),
     // After the first (admin) account exists, may others sign up from the login page?
     allowRegistration: process.env.ALLOW_REGISTRATION !== 'false',
+    // Accounts that never confirm their e-mail are deleted after this many days (admins are kept)
+    unverifiedTtlDays: Number(process.env.UNVERIFIED_TTL_DAYS || 7),
+  },
+  // Address of the dashboard as users open it; used in e-mailed links (verify, reset password)
+  appUrl: (process.env.APP_URL || process.env.PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 4000}`).replace(/\/$/, ''),
+  // SMTP for account e-mails. Empty host = links are printed to the server log instead (development)
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
   },
   ai: {
     // Any OpenAI-compatible Chat Completions endpoint (OpenAI, OpenRouter, local LLM, ...)
