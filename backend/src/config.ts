@@ -13,6 +13,12 @@ export const config = {
     }:${process.env.POSTGRES_PORT || 5432}/${process.env.POSTGRES_DB || 'smart_store_sync'}`,
   // Shared secret between n8n and backend (sent as header x-api-key)
   apiKey: process.env.API_KEY || '',
+  auth: {
+    // How long a login stays valid
+    sessionDays: Number(process.env.SESSION_DAYS || 30),
+    // After the first (admin) account exists, may others sign up from the login page?
+    allowRegistration: process.env.ALLOW_REGISTRATION !== 'false',
+  },
   ai: {
     // Any OpenAI-compatible Chat Completions endpoint (OpenAI, OpenRouter, local LLM, ...)
     baseUrl: process.env.AI_BASE_URL || 'https://api.openai.com/v1',

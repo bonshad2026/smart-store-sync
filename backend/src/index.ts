@@ -8,18 +8,16 @@ import { migrate } from './db/migrate';
 import { bootstrap } from './services/bootstrap';
 import { startFeedbackPolling } from './services/feedback';
 import { api } from './routes/api';
+import { auth, requireAuth } from './routes/auth';
 import { publishDue } from './services/content';
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// Optional shared-secret protection (used by n8n and the dashboard)
-app.use('/api', (req, res, next) => {
-  if (!config.apiKey || req.path === '/health') return next();
-  if (req.header('x-api-key') === config.apiKey) return next();
-  res.status(401).json({ error: 'کلید دسترسی (x-api-key) نامعتبر است' });
-});
+// Dashboard users log in (Bearer token); n8n and scripts may use the shared API_KEY (x-api-key)
+app.use('/api', requireAuth);
+app.use('/api/auth', auth);
 app.use('/api', api);
 
 // Uploaded product images

@@ -1,6 +1,6 @@
 import { tr } from '../i18n';
 import { useEffect, useState } from 'react';
-import { api, getApiKey } from '../api';
+import { api, authHeaders } from '../api';
 import Icon from '../components/Icon';
 import { Badge, Button, Card, Field, PageHeader, Skeleton, useLoad, useUi } from '../components/ui';
 import { href } from '../router';
@@ -39,8 +39,7 @@ export default function Automation() {
     }
   };
   const download = async (file: string) => {
-    const key = getApiKey();
-    const res = await fetch(`/api/n8n/workflows/${file}`, { headers: key ? { 'x-api-key': key } : {} });
+    const res = await fetch(`/api/n8n/workflows/${file}`, { headers: authHeaders() });
     const blob = new Blob([await res.text()], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

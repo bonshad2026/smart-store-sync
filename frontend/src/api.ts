@@ -225,26 +225,42 @@ export interface Operation {
 
 // ------------------------------------------------------------------ client
 
-const KEY_STORAGE = 'sss_api_key';
-export const getApiKey = () => {
+// ---- login session (bearer token from /auth/login or /auth/register) ----
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'member';
+  created_at: string;
+  last_login_at: string | null;
+}
+
+const TOKEN_STORAGE = 'sss_token';
+export const getToken = () => {
   try {
-    return localStorage.getItem(KEY_STORAGE) || '';
+    return localStorage.getItem(TOKEN_STORAGE) || '';
   } catch {
     return '';
   }
 };
-export const setApiKey = (k: string) => {
+export const setToken = (t: string | null) => {
   try {
-    localStorage.setItem(KEY_STORAGE, k);
+    if (t) localStorage.setItem(TOKEN_STORAGE, t);
+    else localStorage.removeItem(TOKEN_STORAGE);
   } catch {
     /* ignore */
   }
 };
 
+/** Headers that authenticate a request as the logged-in user */
+export function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
-  const key = getApiKey();
-  if (key) headers['x-api-key'] = key;
+  const headers = authHeaders();
   let payload: BodyInit | undefined;
   if (body instanceof FormData) payload = body;
   else if (body !== undefined) {
@@ -254,6 +270,11 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   const res = await fetch(`/api${url}`, { method, headers, body: payload });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
+  // Session expired or revoked: drop it and let the app show the login page
+  if (res.status === 401 && data.code === 'unauthenticated' && !url.startsWith('/auth/')) {
+    setToken(null);
+    window.dispatchEvent(new Event('sss:logout'));
+  }
   if (!res.ok) {
     const details = Array.isArray(data.details) ? ` (${data.details.join(tr("، "))})` : '';
     throw new Error((data.error || `${tr("خطای")} ${res.status}`) + details);
@@ -268,6 +289,15 @@ export const api = {
   patch: <T>(url: string, body: unknown) => request<T>('PATCH', url, body),
   del: (url: string) => request<void>('DELETE', url),
   upload: <T>(url: string, form: FormData) => request<T>('POST', url, form),
+};
+
+export const authApi = {
+  status: () => api.get<{ has_users: boolean; registration_open: boolean }>('/auth/status'),
+  me: () => api.get<{ user: User }>('/auth/me'),
+  login: (email: string, password: string) => api.post<{ user: User; token: string }>('/auth/login', { email, password }),
+  register: (name: string, email: string, password: string) =>
+    api.post<{ user: User; token: string }>('/auth/register', { name, email, password }),
+  logout: () => api.post<void>('/auth/logout').catch(() => undefined),
 };
 
 // ------------------------------------------------------------------ helpers

@@ -254,3 +254,29 @@ CREATE INDEX IF NOT EXISTS idx_isessions_chat ON interaction_sessions(chat_id, s
 CREATE INDEX IF NOT EXISTS idx_isessions_content ON interaction_sessions(content_id);
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS interaction_id INTEGER REFERENCES interactions(id) ON DELETE SET NULL;
 INSERT INTO settings (key, value) VALUES ('admin_chat_id', ''), ('payment_link', '') ON CONFLICT (key) DO NOTHING;
+
+-- =====================================================================
+-- v0.8: authentication — dashboard users and login sessions
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS users (
+  id            SERIAL PRIMARY KEY,
+  name          VARCHAR(120) NOT NULL DEFAULT '',
+  email         VARCHAR(255) NOT NULL,
+  password_hash TEXT NOT NULL,                          -- scrypt$<salt>$<hash>
+  role          VARCHAR(20) NOT NULL DEFAULT 'member',  -- admin | member
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email));
+
+-- Opaque bearer tokens; only the SHA-256 of the token is stored
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id           SERIAL PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash   CHAR(64) NOT NULL UNIQUE,
+  user_agent   VARCHAR(255) NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at   TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);

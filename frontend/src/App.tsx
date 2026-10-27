@@ -1,6 +1,7 @@
 import { LANG, LOCALE, setLang, tr } from './i18n';
 import { FormEvent, useEffect, useState } from 'react';
-import { api } from './api';
+import { api, authApi, getToken, setToken, User } from './api';
+import Auth from './pages/Auth';
 import Icon from './components/Icon';
 import { UiProvider } from './components/ui';
 import { href, navigate, useRoute } from './router';
@@ -54,7 +55,33 @@ function Page({ parts }: { parts: string[] }) {
   return <Dashboard />;
 }
 
+/** Shows the login page until there is a valid session, then the dashboard */
 export default function App() {
+  // undefined = still checking the stored token
+  const [user, setUser] = useState<User | null | undefined>(getToken() ? undefined : null);
+
+  useEffect(() => {
+    if (getToken()) authApi.me().then((r) => setUser(r.user)).catch(() => {
+      setToken(null);
+      setUser(null);
+    });
+    const onLogout = () => setUser(null);
+    window.addEventListener('sss:logout', onLogout);
+    return () => window.removeEventListener('sss:logout', onLogout);
+  }, []);
+
+  const logout = async () => {
+    await authApi.logout();
+    setToken(null);
+    setUser(null);
+  };
+
+  if (user === undefined) return <div className="auth-page"><span className="spinner" /></div>;
+  if (!user) return <UiProvider><Auth onAuthed={setUser} /></UiProvider>;
+  return <Shell user={user} onLogout={logout} />;
+}
+
+function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const { path, parts } = useRoute();
   const [menuOpen, setMenuOpen] = useState(false);
   const [counts, setCounts] = useState<{ pending: number; failed: number; feedback: number; interactions: number }>({ pending: 0, failed: 0, feedback: 0, interactions: 0 });
@@ -156,6 +183,15 @@ export default function App() {
                 {counts.pending + counts.failed > 0 && <span className="notif-dot">{(counts.pending + counts.failed).toLocaleString(LOCALE)}</span>}
               </a>
               <a className="avatar" href={href('/settings')} title={store}>{logo ? <img src={logo} alt="" /> : [...store.trim()][0] || tr("ف")}</a>
+              <div className="topbar-user">
+                <div className="topbar-user-text">
+                  <strong>{user.name}</strong>
+                  <small>{user.role === 'admin' ? tr("مدیر") : tr("کاربر")}</small>
+                </div>
+                <button className="icon-btn" onClick={onLogout} title={`${tr("خروج")} (${user.email})`} aria-label={tr("خروج")}>
+                  <Icon name="power" />
+                </button>
+              </div>
             </div>
           </header>
           <main className="content" key={path}>
