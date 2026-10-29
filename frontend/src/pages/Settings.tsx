@@ -1,6 +1,6 @@
 import { LANG, setLang, tr } from '../i18n';
 import { FormEvent, useEffect, useState } from 'react';
-import { api, getApiKey, MediaItem, setApiKey } from '../api';
+import { api, MediaItem } from '../api';
 import { HeroSlide, parseSlides } from '../components/HeroSlider';
 import Icon from '../components/Icon';
 import { Button, Card, Field, IconButton, PageHeader, Switch, useUi } from '../components/ui';
@@ -12,7 +12,6 @@ let brandTimer: ReturnType<typeof setTimeout> | undefined;
 export default function Settings() {
   const { toast } = useUi();
   const [values, setValues] = useState<Record<string, string>>({});
-  const [key, setKey] = useState(getApiKey());
   const [health, setHealth] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const theme = useTheme();
@@ -122,12 +121,6 @@ export default function Settings() {
           <a className="btn btn-soft btn-md full-w" href={href('/channels')}><Icon name="share" size={17} /><span>{tr("مدیریت کانال‌های انتشار")}</span></a>
         </Card>
 
-        <Card title={tr("کلید دسترسی داشبورد")} subtitle={tr("اگر API_KEY را در ‎.env تنظیم کرده‌اید، همان را اینجا وارد کنید (فقط در همین مرورگر ذخیره می‌شود).")}>
-          <div className="row gap-8">
-            <input className="grow" dir="ltr" type="password" value={key} onChange={(e) => setKey(e.target.value)} />
-            <Button variant="secondary" onClick={() => { setApiKey(key); toast(tr("کلید ذخیره شد؛ صفحه را دوباره بارگذاری کنید"), 'info'); }}>{tr("ذخیره کلید")}</Button>
-          </div>
-        </Card>
 
         <Card title={tr("امنیت")}>
           <p className="muted"><Icon name="key" size={15} /> {tr("توکن ربات، کلید هوش مصنوعی و رمز پایگاه داده فقط در فایل ‎.env سمت سرور نگهداری می‌شوند. رمزهای SMTP و کلیدهای وب‌هوک مقصدها در پایگاه داده ذخیره و در پنل به‌صورت مخفی نمایش داده می‌شوند.")}</p>

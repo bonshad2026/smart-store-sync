@@ -1,6 +1,9 @@
 import { LANG, LOCALE, setLang, tr } from './i18n';
 import { FormEvent, useEffect, useState } from 'react';
-import { api } from './api';
+import { api, authApi, User } from './api';
+import Account from './pages/Account';
+import Auth from './pages/Auth';
+import { ResetPassword, VerifyEmail, VerifyPending } from './pages/AuthFlows';
 import Icon from './components/Icon';
 import { UiProvider } from './components/ui';
 import { href, navigate, useRoute } from './router';
@@ -32,13 +35,14 @@ const NAV = [
     { path: '/automation', label: tr("اتوماسیون (n8n)"), icon: 'layers' },
     { path: '/operations', label: tr("تاریخچه عملیات"), icon: 'history', badge: 'failed' },
     { path: '/settings', label: tr("تنظیمات"), icon: 'settings' },
+    { path: '/account', label: tr("حساب کاربری"), icon: 'key' },
   ] },
   { group: tr("پشتیبانی"), items: [
     { path: '/help', label: tr("راهنمای کار با سایت"), icon: 'help' },
   ] },
 ];
 
-function Page({ parts }: { parts: string[] }) {
+function Page({ parts, user, onUserChange }: { parts: string[]; user: User; onUserChange: (u: User) => void }) {
   const [a, b] = parts;
   if (a === 'products' && b) return <ProductDetail id={Number(b)} />;
   if (a === 'products') return <Products />;
@@ -51,10 +55,48 @@ function Page({ parts }: { parts: string[] }) {
   if (a === 'feedback') return <Feedback />;
   if (a === 'interactions') return <Interactions />;
   if (a === 'automation') return <Automation />;
+  if (a === 'account') return <Account user={user} onUserChange={onUserChange} />;
   return <Dashboard />;
 }
 
+/**
+ * Auth gate: e-mailed links first, then login (no session) → verify e-mail (unverified) → dashboard.
+ * The session lives in an HttpOnly cookie, so the only way to know it is to ask /auth/me.
+ */
 export default function App() {
+  const { path, query } = useRoute();
+  // undefined = still asking the server
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  const refresh = () => authApi.me().then((r) => setUser(r.user)).catch(() => setUser(null));
+
+  useEffect(() => {
+    refresh();
+    const onLogout = () => setUser(null);
+    window.addEventListener('sss:logout', onLogout);
+    window.addEventListener('sss:unverified', refresh);
+    return () => {
+      window.removeEventListener('sss:logout', onLogout);
+      window.removeEventListener('sss:unverified', refresh);
+    };
+  }, []);
+
+  const logout = async () => {
+    await authApi.logout();
+    setUser(null);
+  };
+
+  let screen;
+  if (path === '/verify-email') screen = <VerifyEmail token={query.get('token') || ''} onVerified={refresh} />;
+  else if (path === '/reset-password') screen = <ResetPassword token={query.get('token') || ''} />;
+  else if (user === undefined) screen = <div className="auth-page"><span className="spinner" /></div>;
+  else if (!user) screen = <Auth onAuthed={setUser} />;
+  else if (!user.email_verified) screen = <VerifyPending user={user} onRefresh={refresh} onLogout={logout} />;
+  else return <Shell user={user} onUserChange={setUser} onLogout={logout} />;
+  return <UiProvider>{screen}</UiProvider>;
+}
+
+function Shell({ user, onUserChange, onLogout }: { user: User; onUserChange: (u: User) => void; onLogout: () => void }) {
   const { path, parts } = useRoute();
   const [menuOpen, setMenuOpen] = useState(false);
   const [counts, setCounts] = useState<{ pending: number; failed: number; feedback: number; interactions: number }>({ pending: 0, failed: 0, feedback: 0, interactions: 0 });
@@ -156,10 +198,19 @@ export default function App() {
                 {counts.pending + counts.failed > 0 && <span className="notif-dot">{(counts.pending + counts.failed).toLocaleString(LOCALE)}</span>}
               </a>
               <a className="avatar" href={href('/settings')} title={store}>{logo ? <img src={logo} alt="" /> : [...store.trim()][0] || tr("ف")}</a>
+              <div className="topbar-user">
+                <a className="topbar-user-text" href={href('/account')} title={tr("حساب کاربری")}>
+                  <strong>{user.name}</strong>
+                  <small>{user.role === 'admin' ? tr("مدیر") : tr("کاربر")}</small>
+                </a>
+                <button className="icon-btn" onClick={onLogout} title={`${tr("خروج")} (${user.email})`} aria-label={tr("خروج")}>
+                  <Icon name="power" />
+                </button>
+              </div>
             </div>
           </header>
           <main className="content" key={path}>
-            <Page parts={parts} />
+            <Page parts={parts} user={user} onUserChange={onUserChange} />
           </main>
         </div>
       </div>

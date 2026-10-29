@@ -70,7 +70,12 @@ npm run dev         # http://localhost:5173
 | `AI_API_KEY`، `AI_BASE_URL`، `AI_MODEL` | هر سرویس سازگار با OpenAI Chat Completions. اگر خالی باشد، متن‌ها با **قالب آماده** ساخته می‌شوند تا سیستم بدون AI هم قابل استفاده باشد. |
 | `TELEGRAM_BOT_TOKEN` | توکن ربات از ‎@BotFather. ربات باید ادمین کانال باشد. |
 | `TELEGRAM_CHAT_ID` | شناسه کانال (مثل ‎`@my_channel`). از صفحه تنظیمات هم قابل تغییر است. |
-| `API_KEY` | کلید مشترک برای n8n و داشبورد (هدر `x-api-key`). در محیط واقعی حتماً تنظیم شود. |
+| `API_KEY` | کلید مشترک برای n8n و اسکریپت‌ها (هدر `x-api-key`). داشبورد با ورود کاربر کار می‌کند؛ اگر از n8n استفاده می‌کنید حتماً تنظیم شود. |
+| `ALLOW_REGISTRATION` | ثبت‌نام کاربران جدید از صفحه ورود (پیش‌فرض `true`). اولین حساب همیشه قابل ساخت است و مدیر می‌شود؛ در محیط واقعی پس از ساخت حساب مدیر `false` بگذارید. |
+| `SESSION_DAYS` | مدت اعتبار هر ورود به روز (پیش‌فرض ۳۰). |
+| `UNVERIFIED_TTL_DAYS` | حساب‌هایی که ایمیلشان در این مدت تأیید نشود خودکار حذف می‌شوند (پیش‌فرض ۷ روز؛ حساب مدیر حذف نمی‌شود). |
+| `APP_URL` | آدرس پنل برای لینک‌های ایمیل (تأیید ایمیل، بازیابی رمز). در حالت توسعه `http://localhost:5173`. اگر https باشد کوکی ورود `Secure` می‌شود. |
+| `SMTP_HOST`، `SMTP_PORT`، `SMTP_USER`، `SMTP_PASSWORD`، `SMTP_FROM` | ارسال ایمیل‌های حساب کاربری. اگر خالی باشد، لینک‌ها در لاگ سرور چاپ می‌شوند. |
 | `N8N_WEBHOOK_URL` | اگر تنظیم شود، تغییرات محصول به‌جای پردازش داخلی به n8n ارسال می‌شود. |
 
 کلیدها و توکن‌ها فقط سمت سرور نگهداری می‌شوند.
@@ -110,7 +115,26 @@ TSH-001,تی‌شرت نخی,توضیحات...,500000,450000,25,پوشاک,,سف
 
 | متد | مسیر | توضیح |
 |-----|------|-------|
-| GET | `/api/health` | وضعیت سرویس و اتصال‌ها |
+| GET | `/api/health` | وضعیت سرویس و اتصال‌ها (بدون نیاز به ورود) |
+| GET | `/api/auth/status` | آیا کاربری وجود دارد / ثبت‌نام باز است |
+| POST | `/api/auth/register` | `{ name, email, password }` → کوکی ورود + ارسال لینک تأیید ایمیل (اولین حساب = مدیر) |
+| POST | `/api/auth/login` | `{ email, password }` → کوکی ورود |
+| GET | `/api/auth/me` | کاربر فعلی |
+| POST | `/api/auth/logout` | خروج و باطل کردن نشست فعلی |
+| POST | `/api/auth/verify-email` | `{ token }` از لینک ایمیل |
+| POST | `/api/auth/resend-verification` | ارسال دوباره لینک تأیید |
+| POST | `/api/auth/forgot-password` | `{ email }` → ارسال لینک بازیابی رمز (پاسخ همیشه یکسان) |
+| POST | `/api/auth/reset-password` | `{ token, password }` → رمز جدید و خروج از همه دستگاه‌ها |
+| PUT | `/api/auth/profile` | `{ name, email, current_password? }` (تغییر ایمیل نیاز به رمز و تأیید دوباره دارد) |
+| POST | `/api/auth/change-password` | `{ current_password, new_password }` → خروج از دستگاه‌های دیگر |
+| GET | `/api/auth/sessions` | دستگاه‌های فعال (مرورگر، IP، آخرین فعالیت) |
+| DELETE | `/api/auth/sessions/:id` | خارج کردن یک دستگاه |
+| POST | `/api/auth/sessions/revoke-others` | خروج از همه دستگاه‌ها به جز دستگاه فعلی |
+
+نشست ورود در یک کوکی `HttpOnly` و `SameSite=Lax` نگهداری می‌شود (چیزی در localStorage ذخیره نمی‌شود). سایر مسیرها نیاز به ورود و ایمیل تأییدشده دارند؛ n8n و اسکریپت‌ها می‌توانند به‌جای آن از هدر `x-api-key` استفاده کنند.
+
+| متد | مسیر | توضیح |
+|-----|------|-------|
 | GET | `/api/dashboard` | آمار داشبورد |
 | GET/POST | `/api/products` | فهرست / ایجاد یا به‌روزرسانی محصول (بر اساس SKU) |
 | PUT/DELETE | `/api/products/:id` | ویرایش / حذف |
@@ -123,6 +147,24 @@ TSH-001,تی‌شرت نخی,توضیحات...,500000,450000,25,پوشاک,,سف
 | GET | `/api/operations` | تاریخچه عملیات |
 | POST | `/api/operations/:id/retry` | تلاش مجدد |
 | GET/PUT | `/api/settings` | تنظیمات فروشگاه و لحن برند |
+
+## تست‌ها و CI
+
+تست‌های API بک‌اند با Vitest و supertest روی یک **PostgreSQL واقعی** اجرا می‌شوند. هر بار یک پایگاه داده جدا با نام `<POSTGRES_DB>_test` از صفر ساخته می‌شود (پایگاه داده اصلی دست نمی‌خورد؛ اگر نام پایگاه داده تست به `_test` ختم نشود، تست‌ها اجرا نمی‌شوند).
+
+```bash
+docker compose up -d postgres   # یا هر PostgreSQL محلی با مشخصات .env
+cd backend
+npm test            # یک بار اجرا
+npm run test:watch  # اجرای خودکار هنگام تغییر کد
+npm run typecheck   # بررسی نوع‌ها (کد و تست‌ها)
+```
+
+- برای استفاده از سرور دیگری، `TEST_DATABASE_URL` را تنظیم کنید.
+- ایمیل‌ها در تست ارسال نمی‌شوند و برای خواندن لینک‌ها ضبط می‌شوند.
+- **GitHub Actions** (`.github/workflows/ci.yml`) روی هر Pull Request و هر push به `main` این‌ها را اجرا می‌کند: typecheck و build بک‌اند، تست‌های API، و typecheck و build داشبورد.
+- برای اینکه بدون سبز بودن این بررسی‌ها merge ممکن نباشد، در تنظیمات GitHub برای شاخه `main` یک **Branch protection rule** بسازید و گزینه‌های «Require status checks to pass» (هر دو job) و «Require branches to be up to date before merging» را فعال کنید.
+- قانون کار: هر باگ ابتدا با یک تست که آن را نشان می‌دهد ثبت شود، سپس رفع شود؛ هر قابلیت جدید با تست‌هایش در همان PR بیاید.
 
 ## گام‌های بعدی (پس از MVP)
 

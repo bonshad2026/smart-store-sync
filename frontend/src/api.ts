@@ -225,35 +225,46 @@ export interface Operation {
 
 // ------------------------------------------------------------------ client
 
-const KEY_STORAGE = 'sss_api_key';
-export const getApiKey = () => {
-  try {
-    return localStorage.getItem(KEY_STORAGE) || '';
-  } catch {
-    return '';
-  }
-};
-export const setApiKey = (k: string) => {
-  try {
-    localStorage.setItem(KEY_STORAGE, k);
-  } catch {
-    /* ignore */
-  }
-};
+// ---- login session: an HttpOnly cookie set by the server (never readable from JavaScript) ----
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'member';
+  email_verified: boolean;
+  created_at: string;
+  last_login_at: string | null;
+  password_changed_at: string | null;
+}
+
+export interface SessionInfo {
+  id: number;
+  user_agent: string;
+  ip: string;
+  created_at: string;
+  last_used_at: string;
+  expires_at: string;
+  current: boolean;
+}
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
-  const key = getApiKey();
-  if (key) headers['x-api-key'] = key;
   let payload: BodyInit | undefined;
   if (body instanceof FormData) payload = body;
   else if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
+  // same-origin fetch sends the session cookie automatically
   const res = await fetch(`/api${url}`, { method, headers, body: payload });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
+  // Session expired / revoked, or e-mail not verified yet: let the app switch screens
+  if (!url.startsWith('/auth/')) {
+    if (res.status === 401 && data.code === 'unauthenticated') window.dispatchEvent(new Event('sss:logout'));
+    if (res.status === 403 && data.code === 'unverified') window.dispatchEvent(new Event('sss:unverified'));
+  }
   if (!res.ok) {
     const details = Array.isArray(data.details) ? ` (${data.details.join(tr("، "))})` : '';
     throw new Error((data.error || `${tr("خطای")} ${res.status}`) + details);
@@ -268,6 +279,24 @@ export const api = {
   patch: <T>(url: string, body: unknown) => request<T>('PATCH', url, body),
   del: (url: string) => request<void>('DELETE', url),
   upload: <T>(url: string, form: FormData) => request<T>('POST', url, form),
+};
+
+export const authApi = {
+  status: () => api.get<{ has_users: boolean; registration_open: boolean }>('/auth/status'),
+  me: () => api.get<{ user: User }>('/auth/me'),
+  login: (email: string, password: string) => api.post<{ user: User }>('/auth/login', { email, password }),
+  register: (name: string, email: string, password: string) => api.post<{ user: User }>('/auth/register', { name, email, password }),
+  logout: () => api.post<void>('/auth/logout').catch(() => undefined),
+  verifyEmail: (token: string) => api.post<{ ok: true }>('/auth/verify-email', { token }),
+  resendVerification: () => api.post<{ ok: true }>('/auth/resend-verification'),
+  forgotPassword: (email: string) => api.post<{ ok: true }>('/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) => api.post<{ ok: true }>('/auth/reset-password', { token, password }),
+  updateProfile: (body: { name: string; email: string; current_password?: string }) => api.put<{ user: User }>('/auth/profile', body),
+  changePassword: (current_password: string, new_password: string) =>
+    api.post<{ revoked: number }>('/auth/change-password', { current_password, new_password }),
+  sessions: () => api.get<SessionInfo[]>('/auth/sessions'),
+  revokeSession: (id: number) => api.del(`/auth/sessions/${id}`),
+  revokeOtherSessions: () => api.post<{ revoked: number }>('/auth/sessions/revoke-others'),
 };
 
 // ------------------------------------------------------------------ helpers

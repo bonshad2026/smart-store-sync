@@ -1,47 +1,12 @@
-import cors from 'cors';
-import express, { NextFunction, Request, Response } from 'express';
-import fs from 'fs';
-import path from 'path';
-import { ZodError } from 'zod';
 import { config } from './config';
+import { createApp } from './app';
 import { migrate } from './db/migrate';
 import { bootstrap } from './services/bootstrap';
 import { startFeedbackPolling } from './services/feedback';
-import { api } from './routes/api';
+import { cleanupAuth } from './services/auth';
 import { publishDue } from './services/content';
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '2mb' }));
-
-// Optional shared-secret protection (used by n8n and the dashboard)
-app.use('/api', (req, res, next) => {
-  if (!config.apiKey || req.path === '/health') return next();
-  if (req.header('x-api-key') === config.apiKey) return next();
-  res.status(401).json({ error: 'کلید دسترسی (x-api-key) نامعتبر است' });
-});
-app.use('/api', api);
-
-// Uploaded product images
-app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d' }));
-
-// Serve the built dashboard (frontend/dist) if present - single-port production mode
-const dist = path.resolve(__dirname, '../../frontend/dist');
-if (fs.existsSync(dist)) {
-  app.use(express.static(dist));
-  app.get(/^\/(?!api|uploads).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
-}
-
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  if (err instanceof ZodError) {
-    return res.status(400).json({ error: 'داده‌های ورودی نامعتبر است', details: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`) });
-  }
-  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'حجم فایل بیش از حد مجاز است (حداکثر ۵۰ مگابایت برای هر فایل)' });
-  if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ error: 'تعداد فایل‌ها بیش از حد مجاز است (حداکثر ۱۰ فایل)' });
-  const status = err.status || 500;
-  if (status >= 500) console.error(err);
-  res.status(status).json({ error: err.message || 'خطای داخلی سرور' });
-});
+const app = createApp();
 
 async function start() {
   await migrate();
@@ -58,6 +23,14 @@ async function start() {
         .catch((e) => console.error('scheduler error:', e.message));
     }, interval * 1000);
   }
+
+  // Hourly: delete accounts that never verified their e-mail, expired sessions and links
+  const cleanup = () =>
+    cleanupAuth()
+      .then((n) => n && console.log(`auth cleanup: removed ${n} unverified account(s)`))
+      .catch((e) => console.error('auth cleanup error:', e.message));
+  cleanup();
+  setInterval(cleanup, 60 * 60 * 1000);
 
   // Telegram button taps & private messages to the bot (set FEEDBACK_POLLING=false to disable)
   if (process.env.FEEDBACK_POLLING !== 'false') startFeedbackPolling().catch((e) => console.error('feedback polling:', e.message));
