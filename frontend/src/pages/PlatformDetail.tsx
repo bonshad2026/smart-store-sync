@@ -10,6 +10,7 @@ import {
 } from '../components/ui';
 import { ContentPreview } from '../components/ContentCard';
 import { navigate } from '../router';
+import TelegramChannels from './TelegramChannels';
 
 interface Details { platform: Platform; destinations: Destination[]; templates: Template[] }
 type Tab = 'destinations' | 'templates' | 'settings';
@@ -39,7 +40,9 @@ export default function PlatformDetail({ id }: { id: number }) {
           { value: 'settings', title: tr("تنظیمات شبکه"), desc: tr("نام، آیکون، سبک نوشتن و روش ارسال"), optional: true, done: true },
         ]}
       />
-      {tab === 'destinations' && <Destinations platform={p} items={data.destinations} reload={reload} />}
+      {tab === 'destinations' && (p.key === 'telegram'
+        ? <TelegramDestinations platform={p} items={data.destinations} reload={reload} />
+        : <Destinations platform={p} items={data.destinations} reload={reload} />)}
       {tab === 'templates' && <Templates platform={p} items={data.templates} destinations={data.destinations} reload={reload} />}
       {tab === 'settings' && <PlatformSettings platform={p} reload={reload} />}
     </>
@@ -47,6 +50,22 @@ export default function PlatformDetail({ id }: { id: number }) {
 }
 
 // ================================================================ destinations
+
+/** Telegram: channels are connected through the bot; older hand-entered destinations stay listed below */
+function TelegramDestinations({ platform, items, reload }: { platform: Platform; items: Destination[]; reload: () => void }) {
+  const manual = items.filter((d) => !d.config?.tg_channel);
+  return (
+    <>
+      <TelegramChannels color={platform.color} onChange={reload} />
+      {manual.length > 0 && (
+        <div className="tg-manual">
+          <h4>{tr("مقصدهای تعریف‌شده با شناسه")}</h4>
+          <Destinations platform={platform} items={manual} reload={reload} />
+        </div>
+      )}
+    </>
+  );
+}
 
 const DEST_HELP: Record<Delivery, string> = {
   telegram: tr("هر کانال یا گروه تلگرام یک مقصد است. ربات باید در کانال «ادمین» با دسترسی ارسال پیام باشد."),

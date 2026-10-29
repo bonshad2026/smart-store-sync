@@ -13,7 +13,8 @@ export const browser = () => request.agent(app);
 export type Browser = ReturnType<typeof browser>;
 
 export async function resetDb() {
-  await query(`TRUNCATE users, auth_sessions, auth_tokens RESTART IDENTITY CASCADE`);
+  await query(`TRUNCATE users, auth_sessions, auth_tokens, telegram_connect_requests, telegram_channels, telegram_bots RESTART IDENTITY CASCADE`);
+  await query(`DELETE FROM destinations WHERE config ? 'tg_channel'`);
   outbox.length = 0;
   resetThrottling();
 }

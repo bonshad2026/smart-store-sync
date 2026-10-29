@@ -3,7 +3,8 @@ import { config } from '../config';
 import { query } from '../db/pool';
 import type { LinkItem } from './media';
 import { getSetting } from './settings';
-import { call, getBotUsername } from './telegram';
+import { asMainBot, call, currentBotId, getBotUsername } from './telegram';
+import { runAsBot } from './telegramBots';
 
 /**
  * Reusable automatic interactions ("ثبت نظر", "درخواست محصول", "پرداخت", ...).
@@ -49,7 +50,7 @@ export interface Interaction extends z.infer<typeof interactionSchema> { id: num
 
 interface Session {
   id: number; interaction_id: number; content_id: number | null; chat_id: string; tg_user_id: string;
-  tg_username: string; tg_name: string; step: number; answers: { key: string; question: string; answer: string }[]; status: string;
+  tg_username: string; tg_name: string; bot_id: number | null; step: number; answers: { key: string; question: string; answer: string }[]; status: string;
 }
 
 export interface TgUser { id: number; first_name?: string; last_name?: string; username?: string }
@@ -248,7 +249,8 @@ async function finish(s: Session, it: Interaction, render: (t: string) => string
     const admin = (await getSetting('admin_chat_id')).trim();
     if (admin) {
       const who = `${s.tg_name}${s.tg_username ? ` (@${s.tg_username})` : ''}`;
-      await send(admin, `🔔 ${it.emoji} ${it.title} — ${render('{product_name}')}\n👤 ${who}\n${summary}`).catch((e) => console.error('admin notify:', e.message));
+      // the store admin's chat is with the platform's main bot
+      await asMainBot(() => send(admin, `🔔 ${it.emoji} ${it.title} — ${render('{product_name}')}\n👤 ${who}\n${summary}`)).catch((e) => console.error('admin notify:', e.message));
     }
   }
   forward({ event: 'interaction.completed', interaction: { id: it.id, title: it.title }, session: full, product: render('{product_name}') });
@@ -273,9 +275,9 @@ async function startSession(interactionId: number, contentId: number, msg: TgMes
   }
   await query(`UPDATE interaction_sessions SET status='cancelled', updated_at=NOW() WHERE chat_id=$1 AND status='active'`, [msg.chat.id]);
   const [s] = await query<Session>(
-    `INSERT INTO interaction_sessions (interaction_id, content_id, tg_user_id, tg_username, tg_name, chat_id)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [it.id, contentId || null, msg.from?.id ?? msg.chat.id, msg.from?.username || '', nameOf(msg.from), msg.chat.id],
+    `INSERT INTO interaction_sessions (interaction_id, content_id, tg_user_id, tg_username, tg_name, chat_id, bot_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [it.id, contentId || null, msg.from?.id ?? msg.chat.id, msg.from?.username || '', nameOf(msg.from), msg.chat.id, currentBotId() ?? null],
   );
   if (it.mode === 'popup') {
     // popup interactions opened via a deep link (e.g. from e-mail): show the text as a message
@@ -313,9 +315,9 @@ export async function handleInteractionUpdate(u: {
       const it = await getInteraction(Number(m[1]));
       await call('answerCallbackQuery', { callback_query_id: cq.id, text: (it?.popup_text || 'ثبت شد 🙏').slice(0, 200), show_alert: true }).catch(() => undefined);
       await query(
-        `INSERT INTO feedback (kind, content_id, interaction_id, button_title, tg_user_id, tg_username, tg_name, auto_reply, status)
-         VALUES ('click',$1,$2,$3,$4,$5,$6,$7,'seen')`,
-        [Number(m[2]) || null, it?.id ?? null, it ? `${it.emoji} ${it.title}`.trim() : '', cq.from.id, cq.from.username || '', nameOf(cq.from), it?.popup_text || ''],
+        `INSERT INTO feedback (kind, content_id, interaction_id, button_title, tg_user_id, tg_username, tg_name, auto_reply, status, bot_id)
+         VALUES ('click',$1,$2,$3,$4,$5,$6,$7,'seen',$8)`,
+        [Number(m[2]) || null, it?.id ?? null, it ? `${it.emoji} ${it.title}`.trim() : '', cq.from.id, cq.from.username || '', nameOf(cq.from), it?.popup_text || '', currentBotId() ?? null],
       );
       forward({ event: 'interaction.tap', interaction: it ? { id: it.id, title: it.title } : null, user: cq.from, content_id: Number(m[2]) });
       return true;
@@ -427,7 +429,7 @@ export async function markSessionsSeen(ids: number[]) {
 export async function replyToSession(id: number, text: string) {
   const [s] = await query<Session>(`SELECT * FROM interaction_sessions WHERE id=$1`, [id]);
   if (!s) throw new Error('گفتگو یافت نشد');
-  await send(s.chat_id, text);
+  await runAsBot(s.bot_id, () => send(s.chat_id, text));
   await query(`UPDATE interaction_sessions SET reply=$2, seen=TRUE, updated_at=NOW() WHERE id=$1`, [id, text]);
   return { ok: true };
 }

@@ -2,9 +2,10 @@ import { config } from './config';
 import { createApp } from './app';
 import { migrate } from './db/migrate';
 import { bootstrap } from './services/bootstrap';
-import { startFeedbackPolling } from './services/feedback';
+import { startTelegramPolling } from './services/telegramPolling';
 import { cleanupAuth } from './services/auth';
 import { publishDue } from './services/content';
+import { refreshAllChannels } from './services/telegramChannels';
 
 const app = createApp();
 
@@ -32,8 +33,15 @@ async function start() {
   cleanup();
   setInterval(cleanup, 60 * 60 * 1000);
 
-  // Telegram button taps & private messages to the bot (set FEEDBACK_POLLING=false to disable)
-  if (process.env.FEEDBACK_POLLING !== 'false') startFeedbackPolling().catch((e) => console.error('feedback polling:', e.message));
+  // Hourly: subscriber counts and bot rights of connected Telegram channels
+  if (config.telegram.botToken) {
+    const refresh = () => refreshAllChannels().catch((e) => console.error('telegram channels:', e.message));
+    refresh();
+    setInterval(refresh, 60 * 60 * 1000);
+  }
+
+  // Telegram updates for the main bot and the stores' own bots (set FEEDBACK_POLLING=false to disable)
+  startTelegramPolling().catch((e) => console.error('telegram polling:', e.message));
 }
 
 start().catch((err) => {
