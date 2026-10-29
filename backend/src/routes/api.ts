@@ -29,6 +29,11 @@ import {
   setProductImages, upsertProduct,
 } from '../services/products';
 import { retryAllFailed, retryOperation } from '../services/retry';
+import {
+  channelDetails, connectStatus, createConnectLink, disconnectChannel, listChannels, refreshChannel,
+} from '../services/telegramChannels';
+import { asMainBot, getBotInfo } from '../services/telegram';
+import { botLinkStatus, canManageBots, createBotLink, listBots } from '../services/telegramBots';
 import { getSettings, saveSettings } from '../services/settings';
 import { KINDS, PLACEHOLDERS, renderTemplate, SAMPLE_PRODUCT } from '../services/templates';
 
@@ -71,6 +76,10 @@ const idParam = (req: Request) => {
   if (!Number.isInteger(id) || id <= 0) throw Object.assign(new Error('شناسه نامعتبر است'), { status: 400 });
   return id;
 };
+/** Only dashboard admins (not members, not the n8n API key) */
+const requireAdmin = (req: Request, _res: Response, next: NextFunction) =>
+  next(req.user?.role === 'admin' ? undefined : Object.assign(new Error('این کار فقط برای مدیر فروشگاه مجاز است'), { status: 403 }));
+
 const notFound = (res: Response, what: string) => res.status(404).json({ error: `${what} یافت نشد` });
 
 // ---------- Health & meta ----------
@@ -101,6 +110,29 @@ api.post('/feedback/:id/reply', h(async (req, res) => {
   const { text } = z.object({ text: z.string().trim().min(1, 'متن پاسخ خالی است').max(4000) }).parse(req.body);
   res.json(await replyToFeedback(idParam(req), text));
 }));
+
+// ---------- Telegram channels connected through the bot ----------
+api.get('/telegram/bot', h(async (_req, res) => {
+  if (!config.telegram.botToken) return res.json({ configured: false, bots: [] });
+  const main = await asMainBot(getBotInfo).catch(() => null);
+  const canCreate = main ? await canManageBots().catch(() => false) : false;
+  res.json({ configured: true, reachable: !!main, can_create_bots: canCreate, bots: await listBots() });
+}));
+// the store's own bot, created through the main bot
+api.post('/telegram/bots/create', requireAdmin, h(async (req, res) => {
+  if (!config.telegram.botToken) throw Object.assign(new Error('اتصال تلگرام هنوز فعال نشده است'), { status: 503 });
+  res.status(201).json(await createBotLink(req.user!.id));
+}));
+api.get('/telegram/bots/create/:id', requireAdmin, h(async (req, res) => res.json(await botLinkStatus(idParam(req), req.user!.id))));
+api.get('/telegram/channels', h(async (_req, res) => res.json(await listChannels())));
+api.get('/telegram/channels/:id', h(async (req, res) => res.json(await channelDetails(idParam(req)))));
+api.post('/telegram/channels/:id/refresh', h(async (req, res) => res.json(await refreshChannel(idParam(req)))));
+api.post('/telegram/channels/:id/disconnect', requireAdmin, h(async (req, res) => res.json(await disconnectChannel(idParam(req)))));
+api.post('/telegram/connect', requireAdmin, h(async (req, res) => {
+  const { bot_id } = z.object({ bot_id: z.number().int().positive() }).parse(req.body);
+  res.status(201).json(await createConnectLink(req.user!.id, bot_id));
+}));
+api.get('/telegram/connect/:id', requireAdmin, h(async (req, res) => res.json(await connectStatus(idParam(req), req.user!.id))));
 
 // ---------- Interactions (reusable automatic buttons & conversations) ----------
 api.get('/interactions', h(async (_req, res) => res.json(await listInteractions())));

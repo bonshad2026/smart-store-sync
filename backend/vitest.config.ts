@@ -21,6 +21,9 @@ const testEnv = {
   UNVERIFIED_TTL_DAYS: '7',
   SMTP_HOST: '',
   FEEDBACK_POLLING: 'false',
+  TELEGRAM_BOT_TOKEN: 'test-bot-token',
+  TELEGRAM_PROXY: '',
+  APP_SECRET: 'test-app-secret',
 };
 // globalSetup runs in this process; test files get the same values through `env`
 Object.assign(process.env, testEnv);

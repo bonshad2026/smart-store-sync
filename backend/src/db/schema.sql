@@ -297,3 +297,96 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id, kind);
+
+-- ============================================================================
+-- v0.9: Telegram channels connected through the platform's own bot
+-- ============================================================================
+
+-- One-time links from the panel that open the bot and let the owner pick a channel; only the SHA-256 is stored
+CREATE TABLE IF NOT EXISTS telegram_connect_requests (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash  CHAR(64) NOT NULL UNIQUE,
+  tg_user_id  BIGINT,                                   -- Telegram account that opened the link
+  channel_id  INTEGER,                                  -- set once a channel was connected
+  error       VARCHAR(255) NOT NULL DEFAULT '',
+  expires_at  TIMESTAMPTZ NOT NULL,
+  used_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS telegram_channels (
+  id               SERIAL PRIMARY KEY,
+  chat_id          BIGINT NOT NULL UNIQUE,
+  title            VARCHAR(255) NOT NULL DEFAULT '',
+  username         VARCHAR(64) NOT NULL DEFAULT '',
+  status           VARCHAR(20) NOT NULL DEFAULT 'active', -- active | restricted | removed | disconnected
+  bot_rights       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  member_count     INTEGER,
+  destination_id   INTEGER REFERENCES destinations(id) ON DELETE SET NULL,
+  connected_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  owner_tg_user_id BIGINT,
+  connected_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  refreshed_at     TIMESTAMPTZ,
+  disconnected_at  TIMESTAMPTZ
+);
+
+-- Posts in connected channels (sent from the panel or directly in Telegram) and their reactions
+CREATE TABLE IF NOT EXISTS telegram_posts (
+  id              SERIAL PRIMARY KEY,
+  channel_id      INTEGER NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
+  message_id      BIGINT NOT NULL,
+  content_id      INTEGER REFERENCES contents(id) ON DELETE SET NULL,
+  source          VARCHAR(10) NOT NULL DEFAULT 'panel',   -- panel | telegram
+  text            TEXT NOT NULL DEFAULT '',
+  reactions       JSONB NOT NULL DEFAULT '{}'::jsonb,     -- emoji -> count
+  reactions_total INTEGER NOT NULL DEFAULT 0,
+  posted_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (channel_id, message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_posts_content ON telegram_posts(content_id);
+
+CREATE TABLE IF NOT EXISTS telegram_member_events (
+  id          SERIAL PRIMARY KEY,
+  channel_id  INTEGER NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
+  tg_user_id  BIGINT,
+  tg_name     VARCHAR(200) NOT NULL DEFAULT '',
+  tg_username VARCHAR(64) NOT NULL DEFAULT '',
+  event       VARCHAR(10) NOT NULL,                       -- join | leave
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_telegram_member_events ON telegram_member_events(channel_id, created_at);
+
+-- One subscriber count per channel per day, for the growth chart
+CREATE TABLE IF NOT EXISTS telegram_member_counts (
+  channel_id INTEGER NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
+  day        DATE NOT NULL,
+  members    INTEGER NOT NULL,
+  PRIMARY KEY (channel_id, day)
+);
+
+-- ============================================================================
+-- v0.10: stores' own Telegram bots, created through the main bot (Telegram "managed bots")
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS telegram_bots (
+  id               SERIAL PRIMARY KEY,
+  tg_bot_id        BIGINT NOT NULL UNIQUE,
+  username         VARCHAR(64) NOT NULL DEFAULT '',
+  name             VARCHAR(255) NOT NULL DEFAULT '',
+  token_enc        TEXT NOT NULL DEFAULT '',              -- AES-GCM, key from APP_SECRET
+  owner_tg_user_id BIGINT,
+  created_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  status           VARCHAR(20) NOT NULL DEFAULT 'active', -- active | error
+  error            VARCHAR(255) NOT NULL DEFAULT '',
+  update_offset    BIGINT NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- connect links now also create bots; a channel belongs to the bot that was added to it
+ALTER TABLE telegram_connect_requests ADD COLUMN IF NOT EXISTS kind VARCHAR(10) NOT NULL DEFAULT 'channel'; -- channel | bot
+ALTER TABLE telegram_connect_requests ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES telegram_bots(id) ON DELETE CASCADE;
+ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES telegram_bots(id) ON DELETE SET NULL;
+-- which bot a subscriber talked to, so answers from the panel go through the same bot
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES telegram_bots(id) ON DELETE SET NULL;
+ALTER TABLE interaction_sessions ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES telegram_bots(id) ON DELETE SET NULL;

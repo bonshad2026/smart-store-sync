@@ -13,6 +13,8 @@ export const config = {
     }:${process.env.POSTGRES_PORT || 5432}/${process.env.POSTGRES_DB || 'smart_store_sync'}`,
   // Shared secret between n8n and backend (sent as header x-api-key)
   apiKey: process.env.API_KEY || '',
+  // Encrypts secrets kept in the database (tokens of the stores' own Telegram bots)
+  appSecret: process.env.APP_SECRET || '',
   auth: {
     // How long a login stays valid
     sessionDays: Number(process.env.SESSION_DAYS || 30),
@@ -41,7 +43,6 @@ export const config = {
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || '',
-    defaultChatId: process.env.TELEGRAM_CHAT_ID || '',
     // HTTP proxy for Telegram requests, e.g. http://host.docker.internal:10809
     proxy: process.env.TELEGRAM_PROXY || '',
     // Custom Bot API base (e.g. a self-hosted relay); default is the official API

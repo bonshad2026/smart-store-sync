@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import fs from 'fs';
 import path from 'path';
 import { fetch as undiciFetch, FormData, ProxyAgent } from 'undici';
@@ -22,11 +23,25 @@ export function telegramSafeHtml(text: string): string {
 interface Sent { message_id: number }
 
 /**
+ * Which bot a Telegram call goes through. Outside withBot() it is the platform's main bot (TELEGRAM_BOT_TOKEN);
+ * inside, a store's own (managed) bot. Update handlers run inside the context of the bot that received the update,
+ * so replies, buttons and deep links automatically use that bot.
+ */
+export interface BotContext { token: string; botId?: number }
+const botContext = new AsyncLocalStorage<BotContext>();
+export const withBot = <T>(bot: BotContext, fn: () => Promise<T>) => botContext.run(bot, fn);
+/** Runs fn with the platform's main bot, even inside a store bot's context */
+export const asMainBot = <T>(fn: () => Promise<T>) => botContext.run({ token: config.telegram.botToken }, fn);
+/** telegram_bots.id of the current store bot; undefined for the main bot */
+export const currentBotId = () => botContext.getStore()?.botId;
+export const currentToken = () => botContext.getStore()?.token || config.telegram.botToken;
+
+/**
  * Calls a Bot API method. Plain values are sent as form fields; local files are
  * uploaded as multipart attachments (referenced as attach://name when needed).
  */
 export async function call(method: string, fields: Record<string, unknown>, files: Record<string, string> = {}) {
-  const token = config.telegram.botToken;
+  const token = currentToken();
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN در فایل .env تنظیم نشده است');
   const form = new FormData();
   for (const [k, v] of Object.entries(fields)) {
@@ -40,7 +55,8 @@ export async function call(method: string, fields: Record<string, unknown>, file
   try {
     res = await undiciFetch(`${config.telegram.apiBase}/bot${token}/${method}`, {
       method: 'POST',
-      body: form,
+      // Telegram rejects an empty multipart body (e.g. getMe), so send none
+      body: [...form.keys()].length ? form : undefined,
       dispatcher: proxyAgent,
       signal: AbortSignal.timeout(Object.keys(files).length ? 180000 : 30000),
     });
@@ -71,14 +87,19 @@ function mediaRef(m: ResolvedMedia, key: string): { value: string; files: Record
   return { value: m.url!, files: {} };
 }
 
-let botUsername: string | null = null;
-/** @username of the bot (cached) — needed for "answer in private chat" buttons */
-export async function getBotUsername(): Promise<string> {
-  if (botUsername) return botUsername;
-  const me = (await call('getMe', {})) as unknown as { username: string };
-  botUsername = me.username;
-  return botUsername;
+const botInfo = new Map<string, { id: number; username: string }>();
+/** id and @username of the current bot (cached per token) */
+export async function getBotInfo(): Promise<{ id: number; username: string }> {
+  const token = currentToken();
+  const cached = botInfo.get(token);
+  if (cached) return cached;
+  const me = (await call('getMe', {})) as unknown as { id: number; username: string };
+  botInfo.set(token, { id: me.id, username: me.username });
+  return botInfo.get(token)!;
 }
+
+/** @username of the bot — needed for "answer in private chat" buttons */
+export const getBotUsername = async () => (await getBotInfo()).username;
 
 /**
  * Inline keyboard, two buttons per row:

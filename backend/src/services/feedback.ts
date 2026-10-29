@@ -3,14 +3,16 @@ import { query } from '../db/pool';
 import type { LinkItem } from './media';
 import { getSetting, saveSettings } from './settings';
 import { handleInteractionUpdate } from './interactions';
-import { call } from './telegram';
+import { call, currentBotId } from './telegram';
+import { runAsBot } from './telegramBots';
+import { ChannelUpdate, handleChannelUpdate } from './telegramChannels';
 
 /**
  * User feedback from Telegram:
  *  - taps on interactive "popup" buttons (callback_query)  -> alert with the button's answer
  *  - taps on interactive "chat" buttons (/start c<id>_<btn>) -> the bot answers in a private chat
  *  - any other private message to the bot                   -> stored for a reply from the panel
- * Updates are fetched with long polling (getUpdates), so no public HTTPS address is needed.
+ * Updates are fetched with long polling (getUpdates, see telegramPolling.ts), so no public HTTPS address is needed.
  * Every event is also forwarded to n8n (setting `n8n_feedback_webhook`) for custom automations.
  */
 
@@ -29,6 +31,7 @@ export interface Feedback {
   reply: string;
   status: 'new' | 'seen' | 'replied';
   replied_at: string | null;
+  bot_id: number | null;
   created_at: string;
 }
 
@@ -50,10 +53,10 @@ async function findButton(contentId: number, buttonId: string) {
 
 async function record(f: Partial<Feedback> & { kind: Feedback['kind'] }) {
   const [row] = await query<Feedback>(
-    `INSERT INTO feedback (kind, content_id, button_id, button_title, tg_user_id, tg_username, tg_name, chat_id, text, auto_reply, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    `INSERT INTO feedback (kind, content_id, button_id, button_title, tg_user_id, tg_username, tg_name, chat_id, text, auto_reply, status, bot_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
     [f.kind, f.content_id ?? null, f.button_id ?? null, f.button_title ?? '', f.tg_user_id ?? null, f.tg_username ?? '',
-      f.tg_name ?? '', f.chat_id ?? null, f.text ?? '', f.auto_reply ?? '', f.auto_reply && f.kind !== 'message' ? 'seen' : 'new'],
+      f.tg_name ?? '', f.chat_id ?? null, f.text ?? '', f.auto_reply ?? '', f.auto_reply && f.kind !== 'message' ? 'seen' : 'new', currentBotId() ?? null],
   );
   forwardToN8n(row).catch(() => undefined);
   return row;
@@ -73,7 +76,10 @@ async function forwardToN8n(f: Feedback) {
   }).catch((e) => console.error('n8n feedback webhook:', (e as Error).message));
 }
 
-async function handle(u: TgUpdate) {
+/** Handles one update of the main bot or of a store bot (called inside that bot's context) */
+export async function handleUpdate(u: TgUpdate) {
+  // connected channels: connect flow, bot membership, posts, reactions, subscribers
+  if (await handleChannelUpdate(u as ChannelUpdate)) return;
   // reusable interactions (popup taps, conversations) take precedence
   if (await handleInteractionUpdate(u)) return;
   // 1) tap on an interactive popup button
@@ -111,34 +117,6 @@ async function handle(u: TgUpdate) {
   const isStart = /^\/start\b/.test(text);
   if (welcome && isStart) await call('sendMessage', { chat_id: msg.chat.id, text: welcome }).catch(() => undefined);
   await record({ kind: 'message', ...who, text: text || '(پیام غیرمتنی)', auto_reply: isStart ? welcome : '' });
-}
-
-let running = false;
-/** Long-polls Telegram for button taps and private messages (runs for the life of the process) */
-export async function startFeedbackPolling() {
-  if (running || !config.telegram.botToken) return;
-  running = true;
-  let offset = Number(await getSetting('tg_update_offset', '0')) || 0;
-  console.log('✔ Telegram feedback polling started');
-  for (;;) {
-    try {
-      const updates = (await call('getUpdates', {
-        offset,
-        timeout: 20,
-        allowed_updates: ['message', 'callback_query'],
-      })) as unknown as TgUpdate[];
-      for (const u of updates) {
-        offset = u.update_id + 1;
-        await handle(u).catch((e) => console.error('feedback update failed:', (e as Error).message));
-      }
-      if (updates.length) await saveSettings({ tg_update_offset: String(offset) });
-    } catch (e) {
-      const m = (e as Error).message;
-      // 409 = a webhook is set or another poller runs; back off quietly
-      console.error('Telegram polling:', m.slice(0, 160));
-      await new Promise((r) => setTimeout(r, /409|Conflict/.test(m) ? 60000 : 15000));
-    }
-  }
 }
 
 // ------------------------------------------------------------------ panel API
@@ -187,7 +165,7 @@ export async function replyToFeedback(id: number, text: string) {
   const chat = f.chat_id || f.tg_user_id;
   if (!chat) throw new Error('شناسه کاربر برای پاسخ موجود نیست');
   try {
-    await call('sendMessage', { chat_id: chat, text });
+    await runAsBot(f.bot_id, () => call('sendMessage', { chat_id: chat, text }));
   } catch (e) {
     const m = (e as Error).message;
     if (/403|blocked|initiate|chat not found/i.test(m)) {

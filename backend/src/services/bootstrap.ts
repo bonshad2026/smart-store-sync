@@ -1,4 +1,3 @@
-import { config } from '../config';
 import { query } from '../db/pool';
 import { listPlatforms, seedTemplatesFor } from './platforms';
 import { getSetting } from './settings';
@@ -12,10 +11,10 @@ export async function bootstrap() {
     if (!p.templates_count) await seedTemplatesFor(p);
   }
 
-  // 2) migrate the single Telegram channel of v0.1 into a destination
+  // 2) migrate the single Telegram channel of v0.1 (settings) into a destination
   const tg = (await query<{ id: number }>(`SELECT id FROM platforms WHERE key='telegram'`))[0];
   const hasTgDest = (await query(`SELECT 1 FROM destinations WHERE platform_id=$1 LIMIT 1`, [tg.id])).length > 0;
-  const chatId = (await getSetting('telegram_chat_id')) || config.telegram.defaultChatId;
+  const chatId = await getSetting('telegram_chat_id');
   if (!hasTgDest && chatId && !chatId.includes('your_channel')) {
     await query(`INSERT INTO destinations (platform_id, name, config) VALUES ($1, 'کانال اصلی', $2)`, [
       tg.id,

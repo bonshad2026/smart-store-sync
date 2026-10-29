@@ -4,6 +4,9 @@ import type { Destination } from './platforms';
 import type { Product } from './products';
 import { resolveInteractionLinks } from './interactions';
 import { sendTelegramPost } from './telegram';
+import { runAsBot } from './telegramBots';
+import { recordPanelPost } from './telegramChannels';
+import { query } from '../db/pool';
 
 export interface DeliveryInput {
   destination: Destination; // raw (unmasked) destination incl. delivery type
@@ -94,7 +97,14 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
   const links = await resolveInteractionLinks(raw, input.contentId, d.delivery === 'telegram');
   switch (d.delivery) {
     case 'telegram': {
-      const r = await sendTelegramPost({ chatId: String(d.config.chat_id || ''), text: body, media, links, contentId: input.contentId });
+      // a connected channel is published to through the store bot that was added to it
+      const chatId = String(d.config.chat_id || '');
+      const [ch] = d.config.tg_channel ? await query<{ bot_id: number | null }>(`SELECT bot_id FROM telegram_channels WHERE chat_id=$1`, [chatId]) : [];
+      const r = await runAsBot(ch?.bot_id, async () => {
+        const sent = await sendTelegramPost({ chatId, text: body, media, links, contentId: input.contentId });
+        await recordPanelPost(sent.chat_id, sent.message_ids, input.contentId, body).catch((e) => console.error('telegram post record:', e.message));
+        return sent;
+      });
       const extra = r.message_ids.length > 1 ? ` (${r.message_ids.length.toLocaleString('fa-IR')} پیام)` : '';
       return { status: 'sent', external_id: String(r.message_id ?? ''), message: `ارسال شد به ${r.chat_id}${extra}` };
     }
