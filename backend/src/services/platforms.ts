@@ -3,7 +3,7 @@ import { query } from '../db/pool';
 import { LinkItem, linksSchema, MediaItem, mediaSchema, ProductMediaMode, productMediaSchema } from './media';
 import { builtinTemplate, Kind, KIND_KEYS } from './templates';
 
-export const DELIVERY_TYPES = ['telegram', 'email', 'webhook', 'manual'] as const;
+export const DELIVERY_TYPES = ['telegram', 'instagram', 'email', 'webhook', 'manual'] as const;
 export type Delivery = (typeof DELIVERY_TYPES)[number];
 
 export interface Platform {

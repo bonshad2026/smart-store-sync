@@ -10,6 +10,7 @@ import {
 } from '../components/ui';
 import { ContentPreview } from '../components/ContentCard';
 import { navigate } from '../router';
+import InstagramAccounts from './InstagramAccounts';
 import TelegramChannels from './TelegramChannels';
 
 interface Details { platform: Platform; destinations: Destination[]; templates: Template[] }
@@ -42,7 +43,9 @@ export default function PlatformDetail({ id }: { id: number }) {
       />
       {tab === 'destinations' && (p.key === 'telegram'
         ? <TelegramDestinations platform={p} items={data.destinations} reload={reload} />
-        : <Destinations platform={p} items={data.destinations} reload={reload} />)}
+        : p.delivery === 'instagram'
+          ? <InstagramDestinations platform={p} items={data.destinations} reload={reload} />
+          : <Destinations platform={p} items={data.destinations} reload={reload} />)}
       {tab === 'templates' && <Templates platform={p} items={data.templates} destinations={data.destinations} reload={reload} />}
       {tab === 'settings' && <PlatformSettings platform={p} reload={reload} />}
     </>
@@ -67,8 +70,25 @@ function TelegramDestinations({ platform, items, reload }: { platform: Platform;
   );
 }
 
+/** Instagram: pages are connected by signing in to Instagram; older hand-made destinations stay listed below */
+function InstagramDestinations({ platform, items, reload }: { platform: Platform; items: Destination[]; reload: () => void }) {
+  const manual = items.filter((d) => !d.config?.ig_account_id);
+  return (
+    <>
+      <InstagramAccounts color={platform.color} onChange={reload} />
+      {manual.length > 0 && (
+        <div className="tg-manual">
+          <h4>{tr("مقصدهای انتشار دستی")}</h4>
+          <Destinations platform={platform} items={manual} reload={reload} />
+        </div>
+      )}
+    </>
+  );
+}
+
 const DEST_HELP: Record<Delivery, string> = {
   telegram: tr("هر کانال یا گروه تلگرام یک مقصد است. ربات باید در کانال «ادمین» با دسترسی ارسال پیام باشد."),
+  instagram: tr("هر پیج اینستاگرام یک مقصد است."),
   email: tr("هر لیست گیرنده یک مقصد است؛ مثلاً «مشتریان VIP» یا «خبرنامه عمومی»."),
   webhook: tr("محتوا به آدرس API شما ارسال می‌شود؛ مناسب پنل‌های پیامک، n8n یا هر سرویس دیگر."),
   manual: tr("مثلاً هر پیج یا حساب کاربری یک مقصد است؛ متن آماده می‌شود تا آن را کپی و منتشر کنید."),

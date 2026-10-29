@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { query } from '../db/pool';
 import { aiEnabled, generateText } from './ai';
 import { deliver } from './delivery';
+import { refreshAccount } from './instagram';
+import { IG_FORMATS, IgFormat } from './instagramPublish';
 import { LinkItem, linksSchema, MediaItem, mediaSchema, ProductMediaMode, productMediaSchema } from './media';
 import { runOperation } from './operations';
 import {
@@ -42,6 +44,7 @@ export interface Publication {
   external_id: string | null;
   attempts: number;
   created_at: string;
+  options: { instagram_format?: IgFormat };
 }
 
 // ---------------------------------------------------------------- generation
@@ -233,6 +236,8 @@ export async function deleteContent(id: number) {
 export const publishSchema = z.object({
   destinationIds: z.array(z.coerce.number().int().positive()).min(1, 'حداقل یک مقصد را انتخاب کنید'),
   scheduledAt: z.string().datetime({ offset: true }).nullable().optional(),
+  /** Instagram: regular post (photo / reel / carousel) or story */
+  instagramFormat: z.enum(IG_FORMATS).default('auto'),
 });
 
 /**
@@ -253,8 +258,8 @@ export async function publishContent(contentId: number, input: z.infer<typeof pu
     pubs.push(
       (
         await query<Publication>(
-          `INSERT INTO publications (content_id, destination_id, status, scheduled_at) VALUES ($1,$2,'scheduled',$3) RETURNING *`,
-          [contentId, destId, input.scheduledAt ?? null],
+          `INSERT INTO publications (content_id, destination_id, status, scheduled_at, options) VALUES ($1,$2,'scheduled',$3,$4) RETURNING *`,
+          [contentId, destId, input.scheduledAt ?? null, JSON.stringify(d.delivery === 'instagram' ? { instagram_format: input.instagramFormat } : {})],
         )
       )[0],
     );
@@ -300,6 +305,7 @@ export async function processPublication(id: number, operationId?: number) {
           links: content.links,
           contentId: content.id,
           productMedia: content.product_media || (content.use_product_image ? 'main' : 'none'),
+          options: pub.options,
         });
         await query(
           `UPDATE publications SET status=$2::varchar, message=$3, external_id=$4,
@@ -377,6 +383,11 @@ export async function cancelPublication(id: number) {
 export async function testDestination(id: number) {
   const d = await getDestination(id);
   if (!d) throw Object.assign(new Error('مقصد یافت نشد'), { status: 404 });
+  // a connected Instagram account is only checked: a test post would stay on the page
+  if (d.delivery === 'instagram' && d.config.ig_account_id) {
+    const a = await refreshAccount(Number(d.config.ig_account_id));
+    return { status: 'sent' as const, message: `اتصال به پیج @${a?.username} برقرار است` };
+  }
   const s = await getSettings();
   return deliver({
     destination: d,

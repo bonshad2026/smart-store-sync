@@ -13,7 +13,8 @@ export const EMPTY_PLATFORM: PlatformDraft = { name: '', icon: 'globe', color: '
 /** Which delivery methods a platform may use */
 export function allowedDeliveries(p?: Pick<Platform, 'key' | 'is_builtin'> | null): Delivery[] {
   if (!p || !p.is_builtin) return ['manual', 'webhook'];
-  if (p.key === 'website' || p.key === 'instagram') return ['manual', 'webhook'];
+  if (p.key === 'instagram') return ['instagram', 'manual', 'webhook'];
+  if (p.key === 'website') return ['manual', 'webhook'];
   return [];
 }
 

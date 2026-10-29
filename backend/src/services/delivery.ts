@@ -3,6 +3,7 @@ import { contentMedia, LinkItem, MediaItem, ProductMediaMode, ResolvedMedia, url
 import type { Destination } from './platforms';
 import type { Product } from './products';
 import { resolveInteractionLinks } from './interactions';
+import { publishToInstagram, IgFormat } from './instagramPublish';
 import { sendTelegramPost } from './telegram';
 import { runAsBot } from './telegramBots';
 import { recordPanelPost } from './telegramChannels';
@@ -18,6 +19,8 @@ export interface DeliveryInput {
   productMedia?: ProductMediaMode | boolean;
   /** content id, used to link Telegram button clicks back to the content */
   contentId?: number;
+  /** per-publication choices, e.g. { instagram_format: 'story' } */
+  options?: { instagram_format?: IgFormat };
 }
 
 export interface DeliveryResult {
@@ -107,6 +110,17 @@ export async function deliver(input: DeliveryInput): Promise<DeliveryResult> {
       });
       const extra = r.message_ids.length > 1 ? ` (${r.message_ids.length.toLocaleString('fa-IR')} پیام)` : '';
       return { status: 'sent', external_id: String(r.message_id ?? ''), message: `ارسال شد به ${r.chat_id}${extra}` };
+    }
+    case 'instagram': {
+      // a connected account publishes through the Instagram API; other Instagram destinations stay manual
+      const accountId = Number(d.config.ig_account_id || 0);
+      if (!accountId) return { status: 'manual', message: 'آماده انتشار دستی (متن و فایل‌ها را دانلود و منتشر کنید)' };
+      const r = await publishToInstagram({
+        accountId, body, media, links: urlLinks(links), format: input.options?.instagram_format, contentId: input.contentId,
+      });
+      const first = r.published[0];
+      const extra = r.published.length > 1 ? ` (${r.published.length.toLocaleString('fa-IR')} استوری)` : '';
+      return { status: 'sent', external_id: first.id, message: `منتشر شد در @${r.account.username}${extra}${first.permalink ? ` — ${first.permalink}` : ''}` };
     }
     case 'email': {
       const r = await sendEmail(d.config as any, title, body, media, urlLinks(links));

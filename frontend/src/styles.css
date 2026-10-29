@@ -1505,3 +1505,7 @@ a.topbar-user-text:hover strong { color: var(--brand-text); }
 .tg-qr { justify-self: center; padding: 10px; border-radius: 14px; background: #fff; line-height: 0; }
 .tg-qr img { display: block; border-radius: 6px; }
 .tg-qr-hint { text-align: center; margin: -6px 0 0; }
+
+/* Instagram accounts */
+.ig-avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.ig-failed { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; }

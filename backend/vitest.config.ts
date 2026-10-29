@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import os from 'os';
 import path from 'path';
 import { defineConfig } from 'vitest/config';
 
@@ -24,6 +25,12 @@ const testEnv = {
   TELEGRAM_BOT_TOKEN: 'test-bot-token',
   TELEGRAM_PROXY: '',
   APP_SECRET: 'test-app-secret',
+  INSTAGRAM_APP_ID: '1234567890',
+  INSTAGRAM_APP_SECRET: 'test-instagram-secret',
+  INSTAGRAM_PROXY: '',
+  INSTAGRAM_POLL_MS: '1',
+  PUBLIC_URL: 'https://panel.example.test',
+  UPLOAD_DIR: path.join(os.tmpdir(), 'sss-test-uploads'),
 };
 // globalSetup runs in this process; test files get the same values through `env`
 Object.assign(process.env, testEnv);

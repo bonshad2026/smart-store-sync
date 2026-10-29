@@ -14,7 +14,8 @@ export type Browser = ReturnType<typeof browser>;
 
 export async function resetDb() {
   await query(`TRUNCATE users, auth_sessions, auth_tokens, telegram_connect_requests, telegram_channels, telegram_bots RESTART IDENTITY CASCADE`);
-  await query(`DELETE FROM destinations WHERE config ? 'tg_channel'`);
+  await query(`TRUNCATE instagram_accounts, products RESTART IDENTITY CASCADE`);
+  await query(`DELETE FROM destinations WHERE config ? 'tg_channel' OR config ? 'ig_account_id'`);
   outbox.length = 0;
   resetThrottling();
 }

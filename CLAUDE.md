@@ -23,7 +23,7 @@ Persian guide for people: `docs/HANDOFF.fa.md`. Last updated 2026-10-29.
 - `cd backend && npm run typecheck && npm test` — Vitest + supertest against a real Postgres `*_test` DB
   (dropped and recreated per run). Mailer and Telegram Bot API are mocked (`test/setup.ts`, `test/telegram.test.ts`).
 - `.github/workflows/ci.yml` runs typecheck, build and tests on every PR and push to main. Flow: feature branch → PR → CI green → merge.
-- 72 tests: auth (46) + Telegram bots/channels (26).
+- 94 tests: auth (46) + Telegram bots/channels (26) + Instagram (22, `instagramApi.igRequest` mocked).
 
 ## Auth (done)
 HttpOnly `sss_session` cookie with opaque tokens (SHA-256 stored), sessions list/revoke, profile, password change/reset,
@@ -52,6 +52,14 @@ SMTP via nodemailer; host resolved with `dns.lookup` because Node's resolver poi
 - Network to Telegram is flaky (ECONNRESET/timeouts in logs); polling retries on its own.
 - No Python; use `node -` scripts for multi-line edits.
 
-## Next: Instagram
-The `instagram` platform exists with `delivery = 'manual'` (text is prepared for copy/paste). Goal is a real
-integration like Telegram: publishing + engagement tracking, with as little setup for the store owner as possible.
+## Instagram (phase 1 in progress: connect + publish)
+- Instagram API with Instagram Login (no Facebook Page). Built-in platform `instagram` now has `delivery = 'instagram'`;
+  destinations without `config.ig_account_id` stay manual.
+- Connect: panel → `POST /api/instagram/connect` (one-time OAuth state, hash stored) → instagram.com/oauth/authorize →
+  `GET /api/instagram/callback` (public route) → long-lived token, AES-GCM encrypted, renewed weekly (`services/instagram.ts`).
+- Publish (`services/instagramPublish.ts`): photo = post, video = reel, several = carousel, or `story`; photos converted to
+  JPEG with `sharp` and served from `PUBLIC_URL/uploads` (Instagram fetches media by URL). All HTTP in `instagramApi.ts`.
+- Needs `INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` and an https `PUBLIC_URL`. Dev: Matstack tunnel `tools/tunnel.ps1`
+  (agent in `.local/`, key in `.env`) → `https://tunnel_1szlvfmdxy.mattunnel.ir`. Secrets go in via `tools/set-env.ps1 NAME`.
+- Blocked: the owner's Meta developer account shows "not available in this location"; a friend in NL will create the app.
+- Next phases: comments/mentions/DMs (webhooks), insights.

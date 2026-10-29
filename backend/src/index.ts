@@ -6,6 +6,7 @@ import { startTelegramPolling } from './services/telegramPolling';
 import { cleanupAuth } from './services/auth';
 import { publishDue } from './services/content';
 import { refreshAllChannels } from './services/telegramChannels';
+import { instagramConfigured, refreshAllAccounts } from './services/instagram';
 
 const app = createApp();
 
@@ -38,6 +39,13 @@ async function start() {
     const refresh = () => refreshAllChannels().catch((e) => console.error('telegram channels:', e.message));
     refresh();
     setInterval(refresh, 60 * 60 * 1000);
+  }
+
+  // Every 6 hours: profile of connected Instagram accounts; their 60-day tokens are renewed weekly
+  if (instagramConfigured()) {
+    const refreshIg = () => refreshAllAccounts().catch((e) => console.error('instagram accounts:', e.message));
+    refreshIg();
+    setInterval(refreshIg, 6 * 60 * 60 * 1000);
   }
 
   // Telegram updates for the main bot and the stores' own bots (set FEEDBACK_POLLING=false to disable)
