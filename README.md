@@ -148,6 +148,24 @@ TSH-001,تی‌شرت نخی,توضیحات...,500000,450000,25,پوشاک,,سف
 | POST | `/api/operations/:id/retry` | تلاش مجدد |
 | GET/PUT | `/api/settings` | تنظیمات فروشگاه و لحن برند |
 
+## تست‌ها و CI
+
+تست‌های API بک‌اند با Vitest و supertest روی یک **PostgreSQL واقعی** اجرا می‌شوند. هر بار یک پایگاه داده جدا با نام `<POSTGRES_DB>_test` از صفر ساخته می‌شود (پایگاه داده اصلی دست نمی‌خورد؛ اگر نام پایگاه داده تست به `_test` ختم نشود، تست‌ها اجرا نمی‌شوند).
+
+```bash
+docker compose up -d postgres   # یا هر PostgreSQL محلی با مشخصات .env
+cd backend
+npm test            # یک بار اجرا
+npm run test:watch  # اجرای خودکار هنگام تغییر کد
+npm run typecheck   # بررسی نوع‌ها (کد و تست‌ها)
+```
+
+- برای استفاده از سرور دیگری، `TEST_DATABASE_URL` را تنظیم کنید.
+- ایمیل‌ها در تست ارسال نمی‌شوند و برای خواندن لینک‌ها ضبط می‌شوند.
+- **GitHub Actions** (`.github/workflows/ci.yml`) روی هر Pull Request و هر push به `main` این‌ها را اجرا می‌کند: typecheck و build بک‌اند، تست‌های API، و typecheck و build داشبورد.
+- برای اینکه بدون سبز بودن این بررسی‌ها merge ممکن نباشد، در تنظیمات GitHub برای شاخه `main` یک **Branch protection rule** بسازید و گزینه‌های «Require status checks to pass» (هر دو job) و «Require branches to be up to date before merging» را فعال کنید.
+- قانون کار: هر باگ ابتدا با یک تست که آن را نشان می‌دهد ثبت شود، سپس رفع شود؛ هر قابلیت جدید با تست‌هایش در همان PR بیاید.
+
 ## گام‌های بعدی (پس از MVP)
 
 - اتصال مستقیم به فروشگاه‌ها (ووکامرس و…) به‌عنوان منبع محصولات
