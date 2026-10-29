@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import nodemailer from 'nodemailer';
 import { config } from '../config';
 
@@ -14,8 +16,13 @@ export async function sendAccountEmail(to: string, subject: string, intro: strin
     console.log(`✉ [no SMTP] to ${to} — ${subject}\n   ${action.url}`);
     return;
   }
+  // Resolve through the OS (dns.lookup), not nodemailer's own DNS queries: those can time out
+  // when the machine's resolver is a local VPN/proxy stub. TLS still checks the real hostname.
+  const { host } = config.smtp;
+  const address = isIP(host) ? host : (await lookup(host, { family: 4 })).address;
   const transport = nodemailer.createTransport({
-    host: config.smtp.host,
+    host: address,
+    tls: { servername: host },
     port: config.smtp.port,
     secure: config.smtp.secure || config.smtp.port === 465,
     auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.password } : undefined,
