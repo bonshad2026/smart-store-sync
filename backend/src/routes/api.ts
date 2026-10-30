@@ -34,6 +34,10 @@ import {
 } from '../services/telegramChannels';
 import { asMainBot, getBotInfo } from '../services/telegram';
 import { botLinkStatus, canManageBots, createBotLink, listBots } from '../services/telegramBots';
+import {
+  accountDetails, connectStatus as igConnectStatus, createConnectUrl, disconnectAccount, handleCallback, instagramConfigured,
+  listAccounts, publicUrlReady, refreshAccount,
+} from '../services/instagram';
 import { getSettings, saveSettings } from '../services/settings';
 import { KINDS, PLACEHOLDERS, renderTemplate, SAMPLE_PRODUCT } from '../services/templates';
 
@@ -133,6 +137,17 @@ api.post('/telegram/connect', requireAdmin, h(async (req, res) => {
   res.status(201).json(await createConnectLink(req.user!.id, bot_id));
 }));
 api.get('/telegram/connect/:id', requireAdmin, h(async (req, res) => res.json(await connectStatus(idParam(req), req.user!.id))));
+
+// ---------- Instagram accounts (Instagram API with Instagram Login) ----------
+api.get('/instagram', h(async (_req, res) =>
+  res.json({ configured: instagramConfigured(), public_url: publicUrlReady(), accounts: await listAccounts() })));
+api.post('/instagram/connect', requireAdmin, h(async (req, res) => res.status(201).json(await createConnectUrl(req.user!.id))));
+api.get('/instagram/connect/:id', requireAdmin, h(async (req, res) => res.json(await igConnectStatus(idParam(req), req.user!.id))));
+// public: Instagram sends the owner's browser here after sign-in
+api.get('/instagram/callback', h(async (req, res) => res.redirect(await handleCallback(req.query as Record<string, unknown>))));
+api.get('/instagram/accounts/:id', h(async (req, res) => res.json(await accountDetails(idParam(req)))));
+api.post('/instagram/accounts/:id/refresh', h(async (req, res) => res.json(await refreshAccount(idParam(req)))));
+api.post('/instagram/accounts/:id/disconnect', requireAdmin, h(async (req, res) => res.json(await disconnectAccount(idParam(req)))));
 
 // ---------- Interactions (reusable automatic buttons & conversations) ----------
 api.get('/interactions', h(async (_req, res) => res.json(await listInteractions())));

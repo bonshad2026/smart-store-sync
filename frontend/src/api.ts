@@ -2,7 +2,7 @@ import { LOCALE, localizeData, tr } from './i18n';
 // ------------------------------------------------------------------ types
 
 export type Kind = 'intro' | 'discount' | 'restock' | 'price_change';
-export type Delivery = 'telegram' | 'email' | 'webhook' | 'manual';
+export type Delivery = 'telegram' | 'instagram' | 'email' | 'webhook' | 'manual';
 
 export interface Product {
   id: number;
@@ -345,6 +345,7 @@ export const KIND_HINTS: Record<Kind, string> = {
 
 export const DELIVERY_LABELS: Record<Delivery, string> = {
   telegram: tr("ارسال خودکار با ربات تلگرام"),
+  instagram: tr("انتشار خودکار در پیج اینستاگرام"),
   email: tr("ارسال خودکار ایمیل (SMTP)"),
   webhook: tr("ارسال خودکار به وب‌هوک / API"),
   manual: tr("آماده‌سازی متن برای انتشار دستی"),

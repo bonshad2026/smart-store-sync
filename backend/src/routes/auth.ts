@@ -88,6 +88,7 @@ export async function loadSession(req: Request, res: Response, next: NextFunctio
 const PUBLIC = new Set([
   '/health', '/auth/status', '/auth/register', '/auth/login', '/auth/logout', '/auth/me',
   '/auth/verify-email', '/auth/forgot-password', '/auth/reset-password',
+  '/instagram/callback', // Instagram sends the browser back here; the one-time state identifies the user
 ]);
 
 /**

@@ -48,6 +48,16 @@ export const config = {
     // Custom Bot API base (e.g. a self-hosted relay); default is the official API
     apiBase: (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/$/, ''),
   },
+  instagram: {
+    // Meta app (Instagram API with Instagram Login): App Dashboard → Instagram → API setup with Instagram login
+    appId: process.env.INSTAGRAM_APP_ID || '',
+    appSecret: process.env.INSTAGRAM_APP_SECRET || '',
+    // HTTP proxy for Instagram requests (e.g. when Instagram is filtered)
+    proxy: process.env.INSTAGRAM_PROXY || '',
+    graphBase: (process.env.INSTAGRAM_GRAPH_BASE || 'https://graph.instagram.com').replace(/\/$/, ''),
+    // How often to ask whether Instagram has finished processing an uploaded video
+    pollMs: Number(process.env.INSTAGRAM_POLL_MS || 5000),
+  },
   n8nWebhookUrl: process.env.N8N_WEBHOOK_URL || '', // e.g. http://n8n:5678/webhook/product-changed
   maxRetries: Number(process.env.MAX_RETRIES || 3),
   // Public address of this panel; used to build absolute links to uploaded files (webhooks, e-mails)

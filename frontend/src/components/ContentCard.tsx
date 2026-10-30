@@ -194,6 +194,7 @@ export function PublishDialog({ open, content, onClose, onDone }: { open: boolea
   const [selected, setSelected] = useState<number[]>([]);
   const [later, setLater] = useState(false);
   const [when, setWhen] = useState('');
+  const [igFormat, setIgFormat] = useState<'auto' | 'story'>('auto');
   const [busy, setBusy] = useState(false);
 
   const alreadySent = useMemo(
@@ -205,6 +206,7 @@ export function PublishDialog({ open, content, onClose, onDone }: { open: boolea
     if (!open) return;
     setLater(false);
     setWhen('');
+    setIgFormat('auto');
     api.get<Destination[]>(`/destinations?platform_id=${content.platform_id}`).then((d) => {
       setDests(d);
       setSelected(d.filter((x) => x.enabled && !alreadySent.has(x.id)).map((x) => x.id));
@@ -217,6 +219,7 @@ export function PublishDialog({ open, content, onClose, onDone }: { open: boolea
       const r = await api.post<PublishResult>(`/contents/${content.id}/publish`, {
         destinationIds: selected,
         scheduledAt: later && when ? new Date(when).toISOString() : null,
+        instagramFormat: igFormat,
       });
       const ok = r.results.filter((x) => x.status === 'sent').length;
       const manual = r.results.filter((x) => x.status === 'manual').length;
@@ -273,6 +276,22 @@ export function PublishDialog({ open, content, onClose, onDone }: { open: boolea
             </label>
           ))}
         </div>
+      )}
+
+      {dests?.some((d) => d.config.ig_account_id && selected.includes(d.id)) && (
+        <>
+          <h4 className="section-label">{tr("نوع انتشار در اینستاگرام")}</h4>
+          <div className="row gap-8 wrap">
+            <label className={`radio-card ${igFormat === 'auto' ? 'active' : ''}`}>
+              <input type="radio" name="ig-format" checked={igFormat === 'auto'} onChange={() => setIgFormat('auto')} />
+              <span>{tr("پست (عکس، ریلز یا کاروسل)")}</span>
+            </label>
+            <label className={`radio-card ${igFormat === 'story' ? 'active' : ''}`}>
+              <input type="radio" name="ig-format" checked={igFormat === 'story'} onChange={() => setIgFormat('story')} />
+              <span>{tr("استوری")}</span>
+            </label>
+          </div>
+        </>
       )}
 
       <h4 className="section-label">{tr("زمان انتشار")}</h4>

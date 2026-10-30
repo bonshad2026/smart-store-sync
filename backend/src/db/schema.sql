@@ -390,3 +390,58 @@ ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES
 -- which bot a subscriber talked to, so answers from the panel go through the same bot
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES telegram_bots(id) ON DELETE SET NULL;
 ALTER TABLE interaction_sessions ADD COLUMN IF NOT EXISTS bot_id INTEGER REFERENCES telegram_bots(id) ON DELETE SET NULL;
+
+-- ============================================================================
+-- v0.11: Instagram professional accounts (Instagram API with Instagram Login)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS instagram_accounts (
+  id                  SERIAL PRIMARY KEY,
+  ig_user_id          VARCHAR(40) NOT NULL UNIQUE,          -- Instagram professional account id (/me user_id)
+  username            VARCHAR(64) NOT NULL DEFAULT '',
+  name                VARCHAR(255) NOT NULL DEFAULT '',
+  account_type        VARCHAR(20) NOT NULL DEFAULT '',      -- BUSINESS | MEDIA_CREATOR
+  profile_picture_url TEXT NOT NULL DEFAULT '',
+  followers_count     INTEGER,
+  follows_count       INTEGER,
+  media_count         INTEGER,
+  permissions         TEXT NOT NULL DEFAULT '',             -- granted scopes, comma separated
+  token_enc           TEXT NOT NULL DEFAULT '',             -- long-lived token, AES-GCM (APP_SECRET)
+  token_expires_at    TIMESTAMPTZ,
+  token_refreshed_at  TIMESTAMPTZ,
+  status              VARCHAR(20) NOT NULL DEFAULT 'active', -- active | expired | disconnected
+  error               VARCHAR(255) NOT NULL DEFAULT '',
+  destination_id      INTEGER REFERENCES destinations(id) ON DELETE SET NULL,
+  connected_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  connected_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  refreshed_at        TIMESTAMPTZ,
+  disconnected_at     TIMESTAMPTZ
+);
+
+-- One-time OAuth "state" values from the panel's connect button; only the SHA-256 is stored
+CREATE TABLE IF NOT EXISTS instagram_connect_requests (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  state_hash  CHAR(64) NOT NULL UNIQUE,
+  account_id  INTEGER REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  error       VARCHAR(255) NOT NULL DEFAULT '',
+  expires_at  TIMESTAMPTZ NOT NULL,
+  used_at     TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Media published from the panel
+CREATE TABLE IF NOT EXISTS instagram_posts (
+  id             SERIAL PRIMARY KEY,
+  account_id     INTEGER NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  media_id       VARCHAR(40) NOT NULL,
+  format         VARCHAR(10) NOT NULL,                      -- image | carousel | reel | story
+  permalink      TEXT NOT NULL DEFAULT '',
+  caption        TEXT NOT NULL DEFAULT '',
+  content_id     INTEGER REFERENCES contents(id) ON DELETE SET NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (account_id, media_id)
+);
+
+-- per-publication choices (e.g. Instagram post or story)
+ALTER TABLE publications ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '{}'::jsonb;
+UPDATE platforms SET delivery = 'instagram' WHERE key = 'instagram' AND is_builtin AND delivery = 'manual';
